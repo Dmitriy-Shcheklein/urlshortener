@@ -17,6 +17,9 @@ type Handler struct {
 }
 
 func New(service Service) *Handler {
+	if service == nil {
+		panic("Handler service must be not nil")
+	}
 	return new(Handler{service: service})
 }
 
@@ -40,10 +43,6 @@ func (h *Handler) GetByd(writer http.ResponseWriter, request *http.Request) {
 }
 
 func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request) {
-	if path := request.URL.Path; path != "/" {
-		http.Error(writer, "Invalid path, required /", http.StatusBadRequest)
-		return
-	}
 	if contentType := request.Header.Get("Content-Type"); contentType != "text/plain" {
 		http.Error(writer, "Invalid content-type", http.StatusBadRequest)
 		return
@@ -69,9 +68,6 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 	writer.WriteHeader(http.StatusCreated)
 
 	scheme := "http"
-	if request.TLS != nil {
-		scheme = "https"
-	}
 	fullURL := fmt.Sprintf("%s://%s/%s", scheme, request.Host, string(*short))
 
 	_, err = writer.Write([]byte(fullURL))
