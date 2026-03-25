@@ -3,6 +3,7 @@ module github.com/Dmitriy-Shcheklein/urlshortener
 go 1.26.1
 
 require (
+	github.com/go-chi/chi v1.5.5
 	github.com/stoolap/stoolap-go v0.3.7
 	github.com/stretchr/testify v1.11.1
 )
