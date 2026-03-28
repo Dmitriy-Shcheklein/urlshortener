@@ -33,7 +33,7 @@ func main() {
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(60 * time.Second))
 
-	handlers := handler.New(service.New(repository.New(db), cfg))
+	handlers := handler.New(service.New(repository.New(db)), cfg)
 	router.Post("/", handlers.CreateShort)
 	router.Get("/{id}", handlers.GetByd)
 

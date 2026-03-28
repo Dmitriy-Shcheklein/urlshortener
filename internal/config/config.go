@@ -16,17 +16,22 @@ func New() (*Config, error) {
 	netAddress := new(NetAddress{Host: "localhost", Port: 8080})
 	_ = flag.Value(netAddress)
 	flag.Var(netAddress, "a", "Net address host:port")
-	baseAddress := new(BaseAddress{Host: netAddress.Host, Port: netAddress.Port, Protocol: "http"})
+	baseAddress := new(BaseAddress{})
 	_ = flag.Value(baseAddress)
 	flag.Var(baseAddress, "b", "Base address protocol://host:port")
 
 	flag.Parse()
 
-	return &Config{
-		Host:        netAddress.Host,
-		Port:        netAddress.Port,
-		BaseAddress: []byte(baseAddress.Protocol + ":" + baseAddress.Host + ":" + strconv.Itoa(baseAddress.Port)),
-	}, nil
+	cfg := Config{
+		Host: netAddress.Host,
+		Port: netAddress.Port,
+	}
+
+	if baseAddress.IsFulfilled() {
+		cfg.BaseAddress = []byte(baseAddress.Protocol + ":" + baseAddress.Host + ":" + strconv.Itoa(baseAddress.Port))
+	}
+
+	return &cfg, nil
 
 }
 

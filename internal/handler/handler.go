@@ -11,16 +11,24 @@ type Service interface {
 	GetById(ID string) ([]byte, error)
 	CreateShort(originalUrl []byte) ([]byte, error)
 }
+type Config interface {
+	GetBaseAddress() []byte
+}
 
 type Handler struct {
 	service Service
+	config  Config
 }
 
-func New(service Service) *Handler {
+func New(service Service, config Config) *Handler {
 	if service == nil {
 		panic("Handler service must be not nil")
 	}
-	return new(Handler{service: service})
+	if config == nil {
+		panic("Handler config must be not nil")
+	}
+
+	return new(Handler{service: service, config: config})
 }
 
 func (h *Handler) GetByd(writer http.ResponseWriter, request *http.Request) {
@@ -58,7 +66,7 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	url, err := h.service.CreateShort(body)
+	short, err := h.service.CreateShort(body)
 	if err != nil {
 		http.Error(writer, "Error while create short url", http.StatusBadRequest)
 		log.Printf("error: %s", err)
@@ -68,7 +76,19 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 	writer.Header().Add("Content-Type", "text/plain")
 	writer.WriteHeader(http.StatusCreated)
 
-	_, err = writer.Write(url)
+	var result []byte
+
+	if len(h.config.GetBaseAddress()) != 0 {
+		result = append(h.config.GetBaseAddress(), "/"...)
+		result = append(result, short...)
+	} else {
+		result = append(result, "http://"...)
+		result = append(result, request.Host...)
+		result = append(result, "/"...)
+		result = append(result, short...)
+	}
+
+	_, err = writer.Write(result)
 	if err != nil {
 		http.Error(writer, "Error while write body", http.StatusBadRequest)
 		return

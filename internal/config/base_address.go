@@ -30,3 +30,7 @@ func (a *BaseAddress) Set(s string) error {
 	a.Port = port
 	return nil
 }
+
+func (a *BaseAddress) IsFulfilled() bool {
+	return a.Host != "" && a.Protocol != "" && a.Port != 0
+}

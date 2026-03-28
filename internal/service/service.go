@@ -11,16 +11,12 @@ type Repository interface {
 	Save(path []byte, short []byte) error
 }
 
-type Config interface {
-	GetBaseAddress() []byte
-}
 type Service struct {
 	repository Repository
-	config     Config
 }
 
-func New(repository Repository, config Config) *Service {
-	return new(Service{repository: repository, config: config})
+func New(repository Repository) *Service {
+	return new(Service{repository: repository})
 }
 
 func (s *Service) GetById(ID string) ([]byte, error) {
@@ -34,15 +30,11 @@ func (s *Service) GetById(ID string) ([]byte, error) {
 func (s *Service) CreateShort(originalUrl []byte) ([]byte, error) {
 	short := shortenURLCRC32(originalUrl)
 
-	var result []byte
-	result = append(s.config.GetBaseAddress(), "/"...)
-	result = append(result, short...)
-
 	if err := s.repository.Save(originalUrl, short); err != nil {
 		return short, err
 	}
 
-	return result, nil
+	return short, nil
 }
 
 func shortenURLCRC32(url []byte) []byte {
