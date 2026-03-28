@@ -24,27 +24,41 @@ type MockService struct {
 	mock.Mock
 }
 
-func (s *MockService) GetById(ID string) (*[]byte, error) {
+func (s *MockService) GetById(ID string) ([]byte, error) {
 	args := s.Called(ID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*[]byte), args.Error(1)
+	return args.Get(0).([]byte), args.Error(1)
 }
-func (s *MockService) CreateShort(originalUrl *[]byte) (*[]byte, error) {
+func (s *MockService) CreateShort(originalUrl []byte) ([]byte, error) {
 	args := s.Called(originalUrl)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*[]byte), args.Error(1)
+	return args.Get(0).([]byte), args.Error(1)
 }
+
+type MockConfig struct {
+	mock.Mock
+}
+
+func (c *MockConfig) GetBaseAddress() []byte {
+	args := c.Called()
+	if args.Get(0) == nil {
+		return []byte("")
+	}
+	return args.Get(0).([]byte)
+}
+
 func (h *Handler) GetService() Service {
 	return h.service
 }
 
 func TestNew(t *testing.T) {
 	service := new(MockService)
-	handler := New(service)
+	config := new(MockConfig)
+	handler := New(service, config)
 	assert.NotNil(t, handler, "Указатель на обработчик не должен быть nil")
 	assert.NotNil(t, handler.GetService(), "Указатель на сервис не должен быть nil")
 
@@ -53,7 +67,12 @@ func TestNew(t *testing.T) {
 func TestNewWithPanic(t *testing.T) {
 	assert.PanicsWithValue(
 		t, "Handler service must be not nil", func() {
-			New(nil)
+			New(nil, new(MockConfig))
+		},
+	)
+	assert.PanicsWithValue(
+		t, "Handler config must be not nil", func() {
+			New(new(MockService), nil)
 		},
 	)
 }
@@ -62,20 +81,22 @@ func TestGetById(t *testing.T) {
 	var (
 		handler  *Handler
 		service  *MockService
+		config   *MockConfig
 		writer   *httptest.ResponseRecorder
 		request  *http.Request
-		fullLink *[]byte
+		fullLink []byte
 		path     string
 	)
 
 	setup := func() {
 		path = "test"
-		fullLink = new([]byte("fullLink"))
+		fullLink = []byte("fullLink")
 		request = httptest.NewRequest(http.MethodGet, "/"+path, nil)
 		writer = httptest.NewRecorder()
 		service = new(MockService)
+		config = new(MockConfig)
 
-		handler = New(service)
+		handler = New(service, config)
 	}
 
 	teardown := func() {
@@ -141,27 +162,30 @@ func TestGetById(t *testing.T) {
 
 func TestCreateShort(t *testing.T) {
 	var (
-		handler   *Handler
-		service   *MockService
-		writer    *httptest.ResponseRecorder
-		request   *http.Request
-		fullLink  string
-		path      string
-		body      io.Reader
-		shortLink *[]byte
+		handler     *Handler
+		service     *MockService
+		config      *MockConfig
+		writer      *httptest.ResponseRecorder
+		request     *http.Request
+		fullLink    string
+		path        string
+		body        io.Reader
+		shortLink   []byte
+		baseAddress []byte
 	)
 
 	setup := func() {
 		path = "/"
 		fullLink = "https://ya.ru"
-		shortLink = new([]byte("short"))
+		shortLink = []byte("short")
 		body = strings.NewReader(fullLink)
 		request = httptest.NewRequest(http.MethodGet, path, body)
 		request.Header.Set("Content-Type", "text/plain")
 		writer = httptest.NewRecorder()
 		service = new(MockService)
+		config = new(MockConfig)
 
-		handler = New(service)
+		handler = New(service, config)
 	}
 
 	teardown := func() {
@@ -173,7 +197,8 @@ func TestCreateShort(t *testing.T) {
 			setup()
 			defer teardown()
 
-			service.On("CreateShort", new([]byte(fullLink))).Return(shortLink, nil)
+			service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
+			config.On("GetBaseAddress").Return(baseAddress)
 
 			assert.NotPanics(
 				t, func() {
@@ -185,15 +210,27 @@ func TestCreateShort(t *testing.T) {
 
 	t.Run(
 		"Должен установить заголовки и тело ответа", func(t *testing.T) {
-			setup()
+			tests := []struct {
+				baseAddress []byte
+				body        string
+			}{
+				{baseAddress: []byte{}, body: "http://example.com/short"},
+				{baseAddress: []byte("https://ya.ru"), body: "https://ya.ru/short"},
+			}
 
-			service.On("CreateShort", new([]byte(fullLink))).Return(shortLink, nil)
+			for _, test := range tests {
+				setup()
 
-			handler.CreateShort(writer, request)
+				service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
+				config.On("GetBaseAddress").Return(test.baseAddress)
 
-			assert.Equal(t, "text/plain", writer.Header().Get("Content-Type"))
-			assert.Equal(t, http.StatusCreated, writer.Code)
-			assert.Equal(t, "http://example.com/short", writer.Body.String())
+				handler.CreateShort(writer, request)
+
+				assert.Equal(t, "text/plain", writer.Header().Get("Content-Type"))
+				assert.Equal(t, http.StatusCreated, writer.Code)
+				assert.Equal(t, test.body, writer.Body.String())
+			}
+
 		},
 	)
 
@@ -202,7 +239,8 @@ func TestCreateShort(t *testing.T) {
 			setup()
 			request.Header.Set("Content-Type", "application/json")
 
-			service.On("CreateShort", new([]byte(fullLink))).Return(shortLink, nil)
+			service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
+			config.On("GetBaseAddress").Return(baseAddress)
 
 			handler.CreateShort(writer, request)
 
@@ -217,7 +255,8 @@ func TestCreateShort(t *testing.T) {
 			request = httptest.NewRequest(http.MethodGet, path, nil)
 			request.Header.Set("Content-Type", "text/plain")
 
-			service.On("CreateShort", new([]byte(fullLink))).Return(shortLink, nil)
+			service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
+			config.On("GetBaseAddress").Return(baseAddress)
 
 			handler.CreateShort(writer, request)
 
@@ -230,7 +269,8 @@ func TestCreateShort(t *testing.T) {
 		"Ошибка создания короткой ссылки", func(t *testing.T) {
 			setup()
 
-			service.On("CreateShort", new([]byte(fullLink))).Return(nil, assert.AnError)
+			service.On("CreateShort", []byte(fullLink)).Return(nil, assert.AnError)
+			config.On("GetBaseAddress").Return(baseAddress)
 
 			handler.CreateShort(writer, request)
 
@@ -245,7 +285,8 @@ func TestCreateShort(t *testing.T) {
 			request = httptest.NewRequest(http.MethodGet, path, &errorReader{err: errors.New("read error")})
 			request.Header.Set("Content-Type", "text/plain")
 
-			service.On("CreateShort", new([]byte(fullLink))).Return(nil, assert.AnError)
+			service.On("CreateShort", []byte(fullLink)).Return(nil, assert.AnError)
+			config.On("GetBaseAddress").Return(baseAddress)
 
 			handler.CreateShort(writer, request)
 
