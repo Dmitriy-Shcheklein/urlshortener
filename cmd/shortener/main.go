@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"time"
 
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/handler"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/service"
@@ -14,7 +16,15 @@ import (
 )
 
 func main() {
-	db := initDB()
+	cfg, err := config.New()
+	if err != nil {
+		log.Fatalf("error while getting config: %s", err)
+	}
+
+	db, err := initDB()
+	if err != nil {
+		log.Fatalf("error while getting db: %s", err)
+	}
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -23,20 +33,20 @@ func main() {
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(60 * time.Second))
 
-	handlers := handler.New(service.New(repository.New(db)))
+	handlers := handler.New(service.New(repository.New(db), cfg))
 	router.Post("/", handlers.CreateShort)
 	router.Get("/{id}", handlers.GetByd)
 
-	err := http.ListenAndServe(":8080", router)
+	err = http.ListenAndServe(cfg.GetNetAddress(), router)
 	if err != nil {
-		panic(err)
+		log.Fatalf("error while start server: %s", err)
 	}
 }
 
-func initDB() *stoolap.DB {
+func initDB() (*stoolap.DB, error) {
 	db, err := stoolap.Open("memory://")
 	if err != nil {
-		panic(err)
+		return db, err
 	}
 
 	ctx := context.Background()
@@ -47,7 +57,7 @@ func initDB() *stoolap.DB {
 	)
 	db.Exec(ctx, "INSERT INTO links (url, short) VALUES ('long_url', 'EwHXdJfB')")
 	if err != nil {
-		panic(err)
+		return db, err
 	}
-	return db
+	return db, nil
 }

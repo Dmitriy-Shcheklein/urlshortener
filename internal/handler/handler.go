@@ -1,15 +1,15 @@
 package handler
 
 import (
-	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 )
 
 type Service interface {
-	GetById(ID string) (*[]byte, error)
-	CreateShort(originalUrl *[]byte) (*[]byte, error)
+	GetById(ID string) ([]byte, error)
+	CreateShort(originalUrl []byte) ([]byte, error)
 }
 
 type Handler struct {
@@ -38,7 +38,7 @@ func (h *Handler) GetByd(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	writer.Header().Add("Content-Type", "text/plain")
-	writer.Header().Add("Location", string(*link))
+	writer.Header().Add("Location", string(link))
 	writer.WriteHeader(http.StatusTemporaryRedirect)
 }
 
@@ -58,19 +58,17 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	short, err := h.service.CreateShort(&body)
+	url, err := h.service.CreateShort(body)
 	if err != nil {
 		http.Error(writer, "Error while create short url", http.StatusBadRequest)
+		log.Printf("error: %s", err)
 		return
 	}
 
 	writer.Header().Add("Content-Type", "text/plain")
 	writer.WriteHeader(http.StatusCreated)
 
-	scheme := "http"
-	fullURL := fmt.Sprintf("%s://%s/%s", scheme, request.Host, string(*short))
-
-	_, err = writer.Write([]byte(fullURL))
+	_, err = writer.Write(url)
 	if err != nil {
 		http.Error(writer, "Error while write body", http.StatusBadRequest)
 		return
