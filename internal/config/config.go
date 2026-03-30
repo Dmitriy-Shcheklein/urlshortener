@@ -20,6 +20,8 @@ func New() (*Config, error) {
 	netAddress := NewNetAddress()
 	baseAddress := NewBaseAddress()
 	flag.Parse()
+	netAddress.ApplyEnv()
+	baseAddress.ApplyEnv()
 
 	cfg := Config{
 		Host: netAddress.Host,

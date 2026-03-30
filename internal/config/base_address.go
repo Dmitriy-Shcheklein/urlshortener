@@ -10,24 +10,27 @@ import (
 )
 
 type BaseAddress struct {
-	Host     string
-	Port     int
-	Protocol string
+	Host      string
+	Port      int
+	Protocol  string
+	IsFromEnv bool
 }
 
 func NewBaseAddress() *BaseAddress {
 	baseAddress := &BaseAddress{}
 
-	if baseUrl := os.Getenv("BASE_URL"); baseUrl != "" {
-		if err := baseAddress.Set(baseUrl); err != nil {
-			log.Fatalf("error while set BASE_URL env: %s", err)
-		}
-		return baseAddress
-	}
 	_ = flag.Value(baseAddress)
 	flag.Var(baseAddress, "b", "Base address protocol://host:port")
 
 	return baseAddress
+}
+
+func (a *BaseAddress) ApplyEnv() {
+	if baseUrl := os.Getenv("BASE_URL"); baseUrl != "" {
+		if err := a.Set(baseUrl); err != nil {
+			log.Fatalf("error while set BASE_URL env: %s", err)
+		}
+	}
 }
 
 func (a *BaseAddress) String() string {
@@ -35,6 +38,9 @@ func (a *BaseAddress) String() string {
 }
 
 func (a *BaseAddress) Set(s string) error {
+	if a.IsFromEnv == true {
+		return nil
+	}
 	hp := strings.Split(s, ":")
 	if len(hp) != 3 {
 		return errors.New("need address in a form protocol://host:port")

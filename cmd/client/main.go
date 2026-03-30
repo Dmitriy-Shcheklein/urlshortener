@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	endpoint := "http://localhost:8080/"
+	endpoint := "http://localhost:4088/"
 	// контейнер данных для запроса
 	data := url.Values{}
 	// приглашение в консоли
