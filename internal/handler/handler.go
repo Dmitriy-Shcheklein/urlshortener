@@ -28,7 +28,7 @@ func New(service Service, config Config) *Handler {
 		panic("Handler config must be not nil")
 	}
 
-	return new(Handler{service: service, config: config})
+	return &Handler{service: service, config: config}
 }
 
 func (h *Handler) GetByd(writer http.ResponseWriter, request *http.Request) {

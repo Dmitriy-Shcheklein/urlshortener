@@ -55,7 +55,10 @@ func initDB() (*stoolap.DB, error) {
 		ctx,
 		"CREATE TABLE links (id INTEGER PRIMARY KEY AUTO_INCREMENT, url TEXT NOT NULL, short TEXT NOT NULL UNIQUE)",
 	)
-	db.Exec(ctx, "INSERT INTO links (url, short) VALUES ('long_url', 'EwHXdJfB')")
+	if err != nil {
+		return db, err
+	}
+	_, err = db.Exec(ctx, "INSERT INTO links (url, short) VALUES ('long_url', 'EwHXdJfB')")
 	if err != nil {
 		return db, err
 	}

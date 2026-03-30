@@ -12,7 +12,7 @@ type Repository struct {
 }
 
 func New(db *stoolap.DB) *Repository {
-	return new(Repository{db: db})
+	return &Repository{db: db}
 }
 
 func (r *Repository) GetById(ID string) ([]byte, error) {

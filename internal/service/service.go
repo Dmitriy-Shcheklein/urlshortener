@@ -16,7 +16,7 @@ type Service struct {
 }
 
 func New(repository Repository) *Service {
-	return new(Service{repository: repository})
+	return &Service{repository: repository}
 }
 
 func (s *Service) GetById(ID string) ([]byte, error) {

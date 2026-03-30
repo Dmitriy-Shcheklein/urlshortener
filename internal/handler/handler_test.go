@@ -56,8 +56,8 @@ func (h *Handler) GetService() Service {
 }
 
 func TestNew(t *testing.T) {
-	service := new(MockService)
-	config := new(MockConfig)
+	service := &MockService{}
+	config := &MockConfig{}
 	handler := New(service, config)
 	assert.NotNil(t, handler, "Указатель на обработчик не должен быть nil")
 	assert.NotNil(t, handler.GetService(), "Указатель на сервис не должен быть nil")
@@ -67,12 +67,12 @@ func TestNew(t *testing.T) {
 func TestNewWithPanic(t *testing.T) {
 	assert.PanicsWithValue(
 		t, "Handler service must be not nil", func() {
-			New(nil, new(MockConfig))
+			New(nil, &MockConfig{})
 		},
 	)
 	assert.PanicsWithValue(
 		t, "Handler config must be not nil", func() {
-			New(new(MockService), nil)
+			New(&MockService{}, nil)
 		},
 	)
 }
@@ -93,8 +93,8 @@ func TestGetById(t *testing.T) {
 		fullLink = []byte("fullLink")
 		request = httptest.NewRequest(http.MethodGet, "/"+path, nil)
 		writer = httptest.NewRecorder()
-		service = new(MockService)
-		config = new(MockConfig)
+		service = &MockService{}
+		config = &MockConfig{}
 
 		handler = New(service, config)
 	}
@@ -182,8 +182,8 @@ func TestCreateShort(t *testing.T) {
 		request = httptest.NewRequest(http.MethodGet, path, body)
 		request.Header.Set("Content-Type", "text/plain")
 		writer = httptest.NewRecorder()
-		service = new(MockService)
-		config = new(MockConfig)
+		service = &MockService{}
+		config = &MockConfig{}
 
 		handler = New(service, config)
 	}
