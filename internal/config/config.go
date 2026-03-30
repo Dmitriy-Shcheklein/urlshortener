@@ -11,15 +11,14 @@ type Config struct {
 	BaseAddress []byte
 }
 
+type FromEnv struct {
+	ServerAddress []string `env:"SERVER_ADDRESS"`
+	BaseUrl       string   `env:"BASE_URL"`
+}
+
 func New() (*Config, error) {
-
-	netAddress := &NetAddress{Host: "localhost", Port: 8080}
-	_ = flag.Value(netAddress)
-	flag.Var(netAddress, "a", "Net address host:port")
-	baseAddress := &BaseAddress{}
-	_ = flag.Value(baseAddress)
-	flag.Var(baseAddress, "b", "Base address protocol://host:port")
-
+	netAddress := NewNetAddress()
+	baseAddress := NewBaseAddress()
 	flag.Parse()
 
 	cfg := Config{

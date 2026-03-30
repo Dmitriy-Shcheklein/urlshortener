@@ -2,6 +2,9 @@ package config
 
 import (
 	"errors"
+	"flag"
+	"log"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -10,6 +13,21 @@ type BaseAddress struct {
 	Host     string
 	Port     int
 	Protocol string
+}
+
+func NewBaseAddress() *BaseAddress {
+	baseAddress := &BaseAddress{}
+
+	if baseUrl := os.Getenv("BASE_URL"); baseUrl != "" {
+		if err := baseAddress.Set(baseUrl); err != nil {
+			log.Fatalf("error while set BASE_URL env: %s", err)
+		}
+		return baseAddress
+	}
+	_ = flag.Value(baseAddress)
+	flag.Var(baseAddress, "b", "Base address protocol://host:port")
+
+	return baseAddress
 }
 
 func (a *BaseAddress) String() string {
