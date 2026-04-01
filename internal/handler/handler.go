@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/go-playground/validator/v10"
 )
 
 type Service interface {
@@ -18,6 +21,13 @@ type Config interface {
 type Handler struct {
 	service Service
 	config  Config
+}
+
+type CreateShortBody struct {
+	URL string `json:"url" validate:"required,min=3"`
+}
+type CreateShortResponse struct {
+	Result string `json:"result"`
 }
 
 func New(service Service, config Config) *Handler {
@@ -66,7 +76,7 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	short, err := h.service.CreateShort(body)
+	result, err := h.prepareRequest(request.Host, body)
 	if err != nil {
 		http.Error(writer, "Error while create short url", http.StatusBadRequest)
 		log.Printf("error: %s", err)
@@ -75,22 +85,75 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 
 	writer.Header().Add("Content-Type", "text/plain")
 	writer.WriteHeader(http.StatusCreated)
+	_, err = writer.Write(result)
+	if err != nil {
+		http.Error(writer, "Error while write body", http.StatusBadRequest)
+		return
+	}
+}
 
+func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.Request) {
+	if contentType := request.Header.Get("Content-Type"); contentType != "application/json" {
+		http.Error(writer, "Invalid content-type", http.StatusBadRequest)
+		return
+	}
+
+	var body CreateShortBody
+	validate := validator.New()
+
+	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+		http.Error(writer, "Error while decode body", http.StatusBadRequest)
+		return
+	}
+
+	if err := validate.Struct(body); err != nil {
+		http.Error(writer, "Error while validate body", http.StatusBadRequest)
+		return
+	}
+
+	result, err := h.prepareRequest(request.Host, []byte(body.URL))
+	if err != nil {
+		http.Error(writer, "Error while create short url", http.StatusBadRequest)
+		log.Printf("error: %s", err)
+		return
+	}
+	response := &CreateShortResponse{
+		Result: string(result),
+	}
+
+	resp, err := json.Marshal(response)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writer.Header().Add("Content-Type", "application/json")
+	writer.WriteHeader(http.StatusCreated)
+	_, err = writer.Write(resp)
+	if err != nil {
+		http.Error(writer, "Error while write body", http.StatusBadRequest)
+		return
+	}
+
+}
+
+func (h *Handler) prepareRequest(host string, url []byte) ([]byte, error) {
 	var result []byte
+
+	short, err := h.service.CreateShort(url)
+	if err != nil {
+		return result, err
+	}
 
 	if len(h.config.GetBaseAddress()) != 0 {
 		result = append(h.config.GetBaseAddress(), "/"...)
 		result = append(result, short...)
 	} else {
 		result = append(result, "http://"...)
-		result = append(result, request.Host...)
+		result = append(result, host...)
 		result = append(result, "/"...)
 		result = append(result, short...)
 	}
 
-	_, err = writer.Write(result)
-	if err != nil {
-		http.Error(writer, "Error while write body", http.StatusBadRequest)
-		return
-	}
+	return result, nil
 }

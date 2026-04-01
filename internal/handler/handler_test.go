@@ -295,3 +295,139 @@ func TestCreateShort(t *testing.T) {
 		},
 	)
 }
+
+func TestCreateFromJSONBody(t *testing.T) {
+	var (
+		handler     *Handler
+		service     *MockService
+		config      *MockConfig
+		writer      *httptest.ResponseRecorder
+		request     *http.Request
+		fullLink    string
+		path        string
+		body        io.Reader
+		shortLink   []byte
+		baseAddress []byte
+	)
+
+	setup := func() {
+		path = "/"
+		fullLink = "https://practicum.yandex.ru"
+		shortLink = []byte("short")
+		body = strings.NewReader("{\"url\": \"https://practicum.yandex.ru\"}")
+		request = httptest.NewRequest(http.MethodPost, path, body)
+		request.Header.Set("Content-Type", "application/json")
+		writer = httptest.NewRecorder()
+		service = &MockService{}
+		config = &MockConfig{}
+
+		handler = New(service, config)
+	}
+
+	teardown := func() {
+		service.AssertExpectations(t)
+	}
+
+	t.Run(
+		"Должен выполниться без ошибок", func(t *testing.T) {
+			setup()
+			defer teardown()
+
+			service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
+			config.On("GetBaseAddress").Return(baseAddress)
+
+			assert.NotPanics(
+				t, func() {
+					handler.CreateFromJSONBody(writer, request)
+				},
+			)
+		},
+	)
+
+	t.Run(
+		"Должен установить заголовки и тело ответа", func(t *testing.T) {
+			tests := []struct {
+				baseAddress []byte
+				body        string
+			}{
+				{baseAddress: []byte{}, body: "{\"result\":\"http://example.com/short\"}"},
+				{baseAddress: []byte("https://ya.ru"), body: "{\"result\":\"https://ya.ru/short\"}"},
+			}
+
+			for _, test := range tests {
+				setup()
+
+				service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
+				config.On("GetBaseAddress").Return(test.baseAddress)
+
+				handler.CreateFromJSONBody(writer, request)
+
+				assert.Equal(t, "application/json", writer.Header().Get("Content-Type"))
+				assert.Equal(t, http.StatusCreated, writer.Code)
+				assert.Equal(t, test.body, writer.Body.String())
+			}
+
+		},
+	)
+
+	t.Run(
+		"Ошибка, некорректный content-type", func(t *testing.T) {
+			setup()
+			request.Header.Set("Content-Type", "text/plain")
+
+			service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
+			config.On("GetBaseAddress").Return(baseAddress)
+
+			handler.CreateFromJSONBody(writer, request)
+
+			assert.Equal(t, http.StatusBadRequest, writer.Code)
+			assert.Equal(t, "Invalid content-type\n", writer.Body.String())
+		},
+	)
+
+	t.Run(
+		"Ошибка, пустое тело запрос", func(t *testing.T) {
+			setup()
+			request = httptest.NewRequest(http.MethodGet, path, nil)
+			request.Header.Set("Content-Type", "application/json")
+
+			service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
+			config.On("GetBaseAddress").Return(baseAddress)
+
+			handler.CreateFromJSONBody(writer, request)
+
+			assert.Equal(t, http.StatusBadRequest, writer.Code)
+			assert.Equal(t, "Error while decode body\n", writer.Body.String())
+		},
+	)
+
+	t.Run(
+		"Ошибка создания короткой ссылки", func(t *testing.T) {
+			setup()
+
+			service.On("CreateShort", []byte(fullLink)).Return(nil, assert.AnError)
+			config.On("GetBaseAddress").Return(baseAddress)
+
+			handler.CreateFromJSONBody(writer, request)
+
+			assert.Equal(t, http.StatusBadRequest, writer.Code)
+			assert.Equal(t, "Error while create short url\n", writer.Body.String())
+		},
+	)
+
+	t.Run(
+		"Ошибка при чтении тела запроса", func(t *testing.T) {
+			setup()
+			request = httptest.NewRequest(http.MethodGet, path, &errorReader{err: errors.New("read error")})
+			request.Header.Set("Content-Type", "application/json")
+
+			service.On("CreateShort", []byte(fullLink)).Return(nil, assert.AnError)
+			config.On("GetBaseAddress").Return(baseAddress)
+
+			handler.CreateFromJSONBody(writer, request)
+
+			assert.Equal(t, http.StatusBadRequest, writer.Code)
+			assert.Equal(t, "Error while decode body\n", writer.Body.String())
+		},
+	)
+}

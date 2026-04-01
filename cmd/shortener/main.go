@@ -41,6 +41,7 @@ func main() {
 	handlers := handler.New(service.New(repository.New(db)), cfg)
 	router.Post("/", handlers.CreateShort)
 	router.Get("/{id}", handlers.GetByd)
+	router.Post("/api/shorten", handlers.CreateFromJSONBody)
 
 	err = http.ListenAndServe(cfg.GetNetAddress(), router)
 	if err != nil {
