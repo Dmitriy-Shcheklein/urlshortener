@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"bytes"
 	"compress/gzip"
 	"io"
 	"net/http"
@@ -19,6 +20,15 @@ func (w gzipWriter) Write(b []byte) (int, error) {
 func WithGzip(h http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
+			isAcceptEncoding := strings.Contains(r.Header.Get("Accept-Encoding"), "gzip")
+			isContentEncoding := strings.Contains(r.Header.Get("Content-Encoding"), "gzip")
+
+			if !isContentEncoding && !isAcceptEncoding {
+				h.ServeHTTP(w, r)
+				return
+			}
+			gzWriter := gzipWriter{ResponseWriter: w}
+
 			if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
 				validTypes := map[string]bool{
 					"application/json": true,
@@ -35,30 +45,35 @@ func WithGzip(h http.Handler) http.Handler {
 
 				gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 				if err != nil {
-					io.WriteString(w, "error while create gzip")
+					http.Error(w, "error while create gzip", http.StatusBadRequest)
 					return
 				}
 				defer gz.Close()
 
 				w.Header().Set("Content-Encoding", "gzip")
-				h.ServeHTTP(gzipWriter{ResponseWriter: w, Writer: gz}, r)
-
-				return
+				gzWriter.Writer = gz
 			}
 
 			if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-				reader, err := gzip.NewReader(r.Body)
+				gzReader, err := gzip.NewReader(r.Body)
 				if err != nil {
-					io.WriteString(w, "error while read gzip")
+					http.Error(w, "error while read gzip", http.StatusBadRequest)
 					return
 				}
-				defer reader.Close()
-				r.Body = io.NopCloser(reader)
+
+				decompressed, err := io.ReadAll(gzReader)
+				if err != nil {
+					http.Error(w, "Failed to decompress", http.StatusBadRequest)
+					return
+				}
+				r.Body.Close()
+				gzReader.Close()
+
+				r.Body = io.NopCloser(bytes.NewReader(decompressed))
 				r.Header.Del("Content-Encoding")
-				h.ServeHTTP(w, r)
-				return
+				r.ContentLength = int64(len(decompressed))
 			}
-			h.ServeHTTP(w, r)
+			h.ServeHTTP(gzWriter, r)
 		},
 	)
 }
