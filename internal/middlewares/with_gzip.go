@@ -12,7 +12,7 @@ type gzipWriter struct {
 	Writer io.Writer
 }
 
-func (w *gzipWriter) Write(b []byte) (int, error) {
+func (w gzipWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
@@ -37,19 +37,15 @@ func WithGzip(h http.Handler) http.Handler {
 				return
 			}
 
-			cw := &gzipWriter{
-				ResponseWriter: w,
-			}
-
-			gz, err := gzip.NewWriterLevel(cw, gzip.BestSpeed)
+			gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 			if err != nil {
-				io.WriteString(cw, err.Error())
+				io.WriteString(w, err.Error())
 				return
 			}
 			defer gz.Close()
 
 			w.Header().Set("Content-Encoding", "gzip")
-			h.ServeHTTP(cw, r)
+			h.ServeHTTP(gzipWriter{ResponseWriter: w, Writer: gz}, r)
 		},
 	)
 }
