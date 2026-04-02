@@ -52,7 +52,9 @@ func WithGzip(h http.Handler) http.Handler {
 					io.WriteString(w, "error while read gzip")
 					return
 				}
-				r.Body = reader
+				defer reader.Close()
+				r.Body = io.NopCloser(reader)
+				r.Header.Del("Content-Encoding")
 				h.ServeHTTP(w, r)
 				return
 			}
