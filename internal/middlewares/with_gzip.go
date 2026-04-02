@@ -37,7 +37,9 @@ func WithGzip(h http.Handler) http.Handler {
 				return
 			}
 
-			cw := &gzipWriter{}
+			cw := &gzipWriter{
+				ResponseWriter: w,
+			}
 
 			gz, err := gzip.NewWriterLevel(cw, gzip.BestSpeed)
 			if err != nil {
