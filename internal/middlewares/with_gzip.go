@@ -22,7 +22,7 @@ func WithGzip(h http.Handler) http.Handler {
 			if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
 				validTypes := map[string]bool{
 					"application/json": true,
-					"text/html":        true,
+					"text/plain":       true,
 				}
 
 				contentType := r.Header.Get("Content-Type")
