@@ -57,6 +57,5 @@ func WithLogging(h http.Handler) http.Handler {
 		).Msg("Response data")
 
 	}
-
 	return http.HandlerFunc(logFn)
 }

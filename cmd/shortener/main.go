@@ -37,6 +37,7 @@ func main() {
 	router.Use(middlewares.WithLogging)
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(60 * time.Second))
+	router.Use(middlewares.WithGzip)
 
 	handlers := handler.New(service.New(repository.New(db)), cfg)
 	router.Post("/", handlers.CreateShort)
