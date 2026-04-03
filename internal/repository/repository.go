@@ -65,5 +65,3 @@ func (r *Repository) Save(originalUrl []byte, short []byte) error {
 	}
 	return nil
 }
-
-// {"uuid":"1","short_url":"4rSPg8ap","original_url":"http://yandex.ru"},

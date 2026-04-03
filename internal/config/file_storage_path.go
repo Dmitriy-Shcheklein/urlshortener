@@ -37,18 +37,6 @@ func (f *FileStoragePath) Set(s string) error {
 		return nil
 	}
 
-	//validExtensions := map[string]string{
-	//	"txt": "txt",
-	//}
-	//
-	//idx := strings.LastIndex(s, ".")
-	//if idx == -1 {
-	//	return errors.New("need file storage path with extension")
-	//}
-	//_, ok := validExtensions[(s[idx+1:])]
-	//if !ok {
-	//	return errors.New("not found valid extension")
-	//}
 	f.Path = s
 	return nil
 }
