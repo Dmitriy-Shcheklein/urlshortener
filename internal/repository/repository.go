@@ -1,43 +1,67 @@
 package repository
 
 import (
-	"context"
-	"database/sql/driver"
+	"bufio"
+	"encoding/json"
+	"errors"
+	"os"
+	"strings"
 
-	"github.com/stoolap/stoolap-go"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config"
+	"github.com/google/uuid"
 )
 
-type Repository struct {
-	db *stoolap.DB
+type FileRaw struct {
+	ID          string `json:"uuid" validate:"required"`
+	ShortURL    string `json:"short_url" validate:"required"`
+	OriginalURL string `json:"original_url" validate:"required"`
 }
 
-func New(db *stoolap.DB) *Repository {
-	return &Repository{db: db}
+type Repository struct {
+	cfg *config.Config
+}
+
+func New(cfg *config.Config) *Repository {
+	return &Repository{cfg: cfg}
 }
 
 func (r *Repository) GetById(ID string) ([]byte, error) {
-	ctx := context.Background()
-	rows := r.db.QueryRow(
-		ctx, "SELECT url FROM links WHERE short = $1", driver.NamedValue{Ordinal: 1, Value: ID},
-	)
-	var url []byte
-	err := rows.Scan(&url)
+	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY, 0666)
 	if err != nil {
-		return url, err
+		return []byte{}, err
 	}
-	return url, nil
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, ID) {
+			var raw FileRaw
+
+			if err := json.Unmarshal([]byte(line), &raw); err != nil {
+				return []byte{}, err
+			}
+
+			return []byte(raw.OriginalURL), nil
+		}
+	}
+	return []byte{}, errors.New("link by id not found")
 }
 
 func (r *Repository) Save(originalUrl []byte, short []byte) error {
-	ctx := context.Background()
+	fileRaw := &FileRaw{
+		OriginalURL: string(originalUrl),
+		ShortURL:    string(short),
+		ID:          uuid.New().String(),
+	}
 
-	_, err := r.db.ExecContext(
-		ctx, "INSERT INTO links (url, short) VALUES ($1, $2)",
-		driver.NamedValue{Ordinal: 1, Value: string(originalUrl)},
-		driver.NamedValue{Ordinal: 2, Value: string(short)},
-	)
+	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(file)
+	if err = encoder.Encode(fileRaw); err != nil {
 		return err
 	}
 	return nil
 }
+
+// {"uuid":"1","short_url":"4rSPg8ap","original_url":"http://yandex.ru"},

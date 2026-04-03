@@ -6,9 +6,10 @@ import (
 )
 
 type Config struct {
-	Port        int
-	Host        string
-	BaseAddress []byte
+	Port            int
+	Host            string
+	BaseAddress     []byte
+	FileStoragePath string
 }
 
 type FromEnv struct {
@@ -19,13 +20,16 @@ type FromEnv struct {
 func New() (*Config, error) {
 	netAddress := NewNetAddress()
 	baseAddress := NewBaseAddress()
+	fileStoragePath := NewFileStoragePath()
 	flag.Parse()
 	netAddress.ApplyEnv()
 	baseAddress.ApplyEnv()
+	fileStoragePath.ApplyEnv()
 
 	cfg := Config{
-		Host: netAddress.Host,
-		Port: netAddress.Port,
+		Host:            netAddress.Host,
+		Port:            netAddress.Port,
+		FileStoragePath: fileStoragePath.Path,
 	}
 
 	if baseAddress.IsFulfilled() {

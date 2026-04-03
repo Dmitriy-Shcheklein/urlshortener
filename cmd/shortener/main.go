@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log"
 	"net/http"
 	"time"
@@ -15,18 +14,12 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/rs/zerolog"
-	"github.com/stoolap/stoolap-go"
 )
 
 func main() {
 	cfg, err := config.New()
 	if err != nil {
 		log.Fatalf("error while getting config: %s", err)
-	}
-
-	db, err := initDB()
-	if err != nil {
-		log.Fatalf("error while getting db: %s", err)
 	}
 
 	logger.InitLogger(zerolog.InfoLevel)
@@ -39,7 +32,7 @@ func main() {
 	router.Use(middleware.Timeout(60 * time.Second))
 	router.Use(middlewares.WithGzip)
 
-	handlers := handler.New(service.New(repository.New(db)), cfg)
+	handlers := handler.New(service.New(repository.New(cfg)), cfg)
 	router.Post("/", handlers.CreateShort)
 	router.Get("/{id}", handlers.GetByd)
 	router.Post("/api/shorten", handlers.CreateFromJSONBody)
@@ -48,26 +41,4 @@ func main() {
 	if err != nil {
 		log.Fatalf("error while start server: %s", err)
 	}
-}
-
-func initDB() (*stoolap.DB, error) {
-	db, err := stoolap.Open("memory://")
-	if err != nil {
-		return db, err
-	}
-
-	ctx := context.Background()
-
-	_, err = db.Exec(
-		ctx,
-		"CREATE TABLE links (id INTEGER PRIMARY KEY AUTO_INCREMENT, url TEXT NOT NULL, short TEXT NOT NULL UNIQUE)",
-	)
-	if err != nil {
-		return db, err
-	}
-	_, err = db.Exec(ctx, "INSERT INTO links (url, short) VALUES ('long_url', 'EwHXdJfB')")
-	if err != nil {
-		return db, err
-	}
-	return db, nil
 }
