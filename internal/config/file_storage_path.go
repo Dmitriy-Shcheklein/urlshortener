@@ -1,11 +1,9 @@
 package config
 
 import (
-	"errors"
 	"flag"
 	"log"
 	"os"
-	"strings"
 )
 
 type FileStoragePath struct {
@@ -14,7 +12,7 @@ type FileStoragePath struct {
 }
 
 func NewFileStoragePath() *FileStoragePath {
-	path := &FileStoragePath{Path: "default.txt"}
+	path := &FileStoragePath{Path: "default"}
 
 	_ = flag.Value(path)
 	flag.Var(path, "f", "file storage path")
@@ -39,18 +37,18 @@ func (f *FileStoragePath) Set(s string) error {
 		return nil
 	}
 
-	validExtensions := map[string]string{
-		"txt": "txt",
-	}
-
-	idx := strings.LastIndex(s, ".")
-	if idx == -1 {
-		return errors.New("need file storage path with extension")
-	}
-	_, ok := validExtensions[(s[idx+1:])]
-	if !ok {
-		return errors.New("not found valid extension")
-	}
+	//validExtensions := map[string]string{
+	//	"txt": "txt",
+	//}
+	//
+	//idx := strings.LastIndex(s, ".")
+	//if idx == -1 {
+	//	return errors.New("need file storage path with extension")
+	//}
+	//_, ok := validExtensions[(s[idx+1:])]
+	//if !ok {
+	//	return errors.New("not found valid extension")
+	//}
 	f.Path = s
 	return nil
 }

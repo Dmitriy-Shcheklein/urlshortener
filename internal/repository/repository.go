@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -47,6 +48,7 @@ func (r *Repository) GetById(ID string) ([]byte, error) {
 }
 
 func (r *Repository) Save(originalUrl []byte, short []byte) error {
+	fmt.Println("TEST", originalUrl, short, r.cfg.FileStoragePath)
 	fileRaw := &FileRaw{
 		OriginalURL: string(originalUrl),
 		ShortURL:    string(short),
