@@ -2,17 +2,23 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/handler"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/middlewares"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/service"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/stoolap/stoolap-go"
+	"github.com/rs/zerolog"
 )
 
 func main() {
@@ -21,46 +27,62 @@ func main() {
 		log.Fatalf("error while getting config: %s", err)
 	}
 
-	db, err := initDB()
-	if err != nil {
-		log.Fatalf("error while getting db: %s", err)
-	}
+	logger.InitLogger(zerolog.InfoLevel)
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
-	router.Use(middleware.Logger)
+	router.Use(middlewares.WithLogging)
 	router.Use(middleware.Recoverer)
-	router.Use(middleware.Timeout(60 * time.Second))
+	router.Use(middleware.Timeout(time.Minute))
+	router.Use(middlewares.WithGzip)
 
-	handlers := handler.New(service.New(repository.New(db)), cfg)
+	handlers, err := handler.New(service.New(repository.New(cfg)), cfg)
+	if err != nil {
+		log.Fatalf("error while create handlers: %s", err)
+	}
 	router.Post("/", handlers.CreateShort)
-	router.Get("/{id}", handlers.GetByd)
+	router.Get("/{id}", handlers.GetByID)
+	router.Post("/api/shorten", handlers.CreateFromJSONBody)
 
-	err = http.ListenAndServe(cfg.GetNetAddress(), router)
-	if err != nil {
-		log.Fatalf("error while start server: %s", err)
-	}
-}
-
-func initDB() (*stoolap.DB, error) {
-	db, err := stoolap.Open("memory://")
-	if err != nil {
-		return db, err
+	server := &http.Server{
+		Addr:              cfg.GetNetAddress(),
+		Handler:           router,
+		ReadTimeout:       5 * time.Second,
+		ReadHeaderTimeout: 2 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
-	ctx := context.Background()
+	//err = server.ListenAndServe()
+	//if err != nil {
+	//	log.Fatalf("error while start server: %s", err)
+	//}
 
-	_, err = db.Exec(
-		ctx,
-		"CREATE TABLE links (id INTEGER PRIMARY KEY AUTO_INCREMENT, url TEXT NOT NULL, short TEXT NOT NULL UNIQUE)",
-	)
-	if err != nil {
-		return db, err
+	go func() {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("http server stopped: %v", err)
+		}
+	}()
+
+	log.Println("Server started")
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err = server.Shutdown(ctx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+		if err = server.Close(); err != nil {
+			log.Printf("Server close error: %v", err)
+		}
+	} else {
+		log.Println("Server stopped gracefully")
 	}
-	_, err = db.Exec(ctx, "INSERT INTO links (url, short) VALUES ('long_url', 'EwHXdJfB')")
-	if err != nil {
-		return db, err
-	}
-	return db, nil
+
+	log.Println("Server exiting")
 }

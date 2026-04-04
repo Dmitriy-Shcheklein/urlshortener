@@ -6,25 +6,30 @@ import (
 )
 
 type Config struct {
-	Port        int
-	Host        string
-	BaseAddress []byte
+	Port            int
+	Host            string
+	BaseAddress     []byte
+	FileStoragePath string
+}
+
+type FromEnv struct {
+	ServerAddress []string `env:"SERVER_ADDRESS"`
+	BaseURL       string   `env:"BASE_URL"`
 }
 
 func New() (*Config, error) {
-
-	netAddress := &NetAddress{Host: "localhost", Port: 8080}
-	_ = flag.Value(netAddress)
-	flag.Var(netAddress, "a", "Net address host:port")
-	baseAddress := &BaseAddress{}
-	_ = flag.Value(baseAddress)
-	flag.Var(baseAddress, "b", "Base address protocol://host:port")
-
+	netAddress := NewNetAddress()
+	baseAddress := NewBaseAddress()
+	fileStoragePath := NewFileStoragePath()
 	flag.Parse()
+	netAddress.ApplyEnv()
+	baseAddress.ApplyEnv()
+	fileStoragePath.ApplyEnv()
 
 	cfg := Config{
-		Host: netAddress.Host,
-		Port: netAddress.Port,
+		Host:            netAddress.Host,
+		Port:            netAddress.Port,
+		FileStoragePath: fileStoragePath.Path,
 	}
 
 	if baseAddress.IsFulfilled() {
@@ -32,7 +37,6 @@ func New() (*Config, error) {
 	}
 
 	return &cfg, nil
-
 }
 
 func (c *Config) GetNetAddress() string {

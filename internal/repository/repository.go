@@ -1,42 +1,64 @@
 package repository
 
 import (
-	"context"
-	"database/sql/driver"
+	"bufio"
+	"encoding/json"
+	"errors"
+	"os"
+	"strings"
 
-	"github.com/stoolap/stoolap-go"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config"
+	"github.com/google/uuid"
 )
 
+type FileRaw struct {
+	ID          string `json:"uuid" validate:"required"`
+	ShortURL    string `json:"short_url" validate:"required"`
+	OriginalURL string `json:"original_url" validate:"required"`
+}
+
 type Repository struct {
-	db *stoolap.DB
+	cfg *config.Config
 }
 
-func New(db *stoolap.DB) *Repository {
-	return &Repository{db: db}
+func New(cfg *config.Config) *Repository {
+	return &Repository{cfg: cfg}
 }
 
-func (r *Repository) GetById(ID string) ([]byte, error) {
-	ctx := context.Background()
-	rows := r.db.QueryRow(
-		ctx, "SELECT url FROM links WHERE short = $1", driver.NamedValue{Ordinal: 1, Value: ID},
-	)
-	var url []byte
-	err := rows.Scan(&url)
+func (r *Repository) GetByID(id string) ([]byte, error) {
+	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY, 0600)
 	if err != nil {
-		return url, err
+		return []byte{}, err
 	}
-	return url, nil
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, id) {
+			var raw FileRaw
+
+			if err = json.Unmarshal([]byte(line), &raw); err != nil {
+				return []byte{}, err
+			}
+
+			return []byte(raw.OriginalURL), nil
+		}
+	}
+	return []byte{}, errors.New("link by id not found")
 }
 
-func (r *Repository) Save(originalUrl []byte, short []byte) error {
-	ctx := context.Background()
+func (r *Repository) Save(originalURL []byte, short []byte) error {
+	fileRaw := &FileRaw{
+		OriginalURL: string(originalURL),
+		ShortURL:    string(short),
+		ID:          uuid.NewString(),
+	}
 
-	_, err := r.db.ExecContext(
-		ctx, "INSERT INTO links (url, short) VALUES ($1, $2)",
-		driver.NamedValue{Ordinal: 1, Value: string(originalUrl)},
-		driver.NamedValue{Ordinal: 2, Value: string(short)},
-	)
+	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
 	if err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(file)
+	if err = encoder.Encode(fileRaw); err != nil {
 		return err
 	}
 	return nil

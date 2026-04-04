@@ -7,7 +7,7 @@ import (
 )
 
 type Repository interface {
-	GetById(ID string) ([]byte, error)
+	GetByID(ID string) ([]byte, error)
 	Save(path []byte, short []byte) error
 }
 
@@ -19,18 +19,18 @@ func New(repository Repository) *Service {
 	return &Service{repository: repository}
 }
 
-func (s *Service) GetById(ID string) ([]byte, error) {
-	link, err := s.repository.GetById(ID)
+func (s *Service) GetByID(id string) ([]byte, error) {
+	link, err := s.repository.GetByID(id)
 	if err != nil {
 		return link, err
 	}
 	return link, nil
 }
 
-func (s *Service) CreateShort(originalUrl []byte) ([]byte, error) {
-	short := shortenURLCRC32(originalUrl)
+func (s *Service) CreateShort(originalURL []byte) ([]byte, error) {
+	short := shortenURLCRC32(originalURL)
 
-	if err := s.repository.Save(originalUrl, short); err != nil {
+	if err := s.repository.Save(originalURL, short); err != nil {
 		return short, err
 	}
 
@@ -39,7 +39,8 @@ func (s *Service) CreateShort(originalUrl []byte) ([]byte, error) {
 
 func shortenURLCRC32(url []byte) []byte {
 	checksum := crc32.ChecksumIEEE(url)
-	hashBytes := make([]byte, 4)
+	const byteSize = 4
+	hashBytes := make([]byte, byteSize)
 	binary.BigEndian.PutUint32(hashBytes, checksum)
 	result := make([]byte, base64.URLEncoding.EncodedLen(len(hashBytes)))
 	base64.URLEncoding.Encode(result, hashBytes)
