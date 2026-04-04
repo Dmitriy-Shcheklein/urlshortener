@@ -14,3 +14,12 @@ build:
 .PHONY: run
 run: build
 	./bundle
+
+.PHONY: lint
+lint:
+	@echo "🔍 Linting code..."
+	@if command -v golangci-lint > /dev/null; then \
+		golangci-lint run -v --config .golangci.yml; \
+	else \
+		echo "⚠️  golangci-lint not installed, skipping linting"; \
+	fi

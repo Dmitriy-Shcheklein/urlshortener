@@ -14,7 +14,7 @@ type Config struct {
 
 type FromEnv struct {
 	ServerAddress []string `env:"SERVER_ADDRESS"`
-	BaseUrl       string   `env:"BASE_URL"`
+	BaseURL       string   `env:"BASE_URL"`
 }
 
 func New() (*Config, error) {
@@ -37,7 +37,6 @@ func New() (*Config, error) {
 	}
 
 	return &cfg, nil
-
 }
 
 func (c *Config) GetNetAddress() string {

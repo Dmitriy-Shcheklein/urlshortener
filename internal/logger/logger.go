@@ -9,6 +9,7 @@ import (
 var Logger *zerolog.Logger
 
 func InitLogger(level zerolog.Level) {
+	zerolog.SetGlobalLevel(level)
 	log := zerolog.New(os.Stdout).With().Timestamp().Logger()
 	Logger = &log
 }

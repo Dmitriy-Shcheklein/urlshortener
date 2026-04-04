@@ -25,18 +25,18 @@ func New(cfg *config.Config) *Repository {
 	return &Repository{cfg: cfg}
 }
 
-func (r *Repository) GetById(ID string) ([]byte, error) {
-	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY, 0666)
+func (r *Repository) GetByID(id string) ([]byte, error) {
+	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY, 0600)
 	if err != nil {
 		return []byte{}, err
 	}
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.Contains(line, ID) {
+		if strings.Contains(line, id) {
 			var raw FileRaw
 
-			if err := json.Unmarshal([]byte(line), &raw); err != nil {
+			if err = json.Unmarshal([]byte(line), &raw); err != nil {
 				return []byte{}, err
 			}
 
@@ -46,14 +46,14 @@ func (r *Repository) GetById(ID string) ([]byte, error) {
 	return []byte{}, errors.New("link by id not found")
 }
 
-func (r *Repository) Save(originalUrl []byte, short []byte) error {
+func (r *Repository) Save(originalURL []byte, short []byte) error {
 	fileRaw := &FileRaw{
-		OriginalURL: string(originalUrl),
+		OriginalURL: string(originalURL),
 		ShortURL:    string(short),
-		ID:          uuid.New().String(),
+		ID:          uuid.NewString(),
 	}
 
-	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
 	if err != nil {
 		return err
 	}

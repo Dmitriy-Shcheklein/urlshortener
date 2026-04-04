@@ -2,17 +2,19 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
 	"strings"
 
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
 	"github.com/go-playground/validator/v10"
 )
 
 type Service interface {
-	GetById(ID string) ([]byte, error)
-	CreateShort(originalUrl []byte) ([]byte, error)
+	GetByID(ID string) ([]byte, error)
+	CreateShort(originalURL []byte) ([]byte, error)
 }
 type Config interface {
 	GetBaseAddress() []byte
@@ -30,18 +32,18 @@ type CreateShortResponse struct {
 	Result string `json:"result"`
 }
 
-func New(service Service, config Config) *Handler {
+func New(service Service, config Config) (*Handler, error) {
 	if service == nil {
-		panic("Handler service must be not nil")
+		return &Handler{}, errors.New("handler service must be not nil")
 	}
 	if config == nil {
-		panic("Handler config must be not nil")
+		return &Handler{}, errors.New("handler config must be not nil")
 	}
 
-	return &Handler{service: service, config: config}
+	return &Handler{service: service, config: config}, nil
 }
 
-func (h *Handler) GetByd(writer http.ResponseWriter, request *http.Request) {
+func (h *Handler) GetByID(writer http.ResponseWriter, request *http.Request) {
 	strID := strings.TrimPrefix(request.URL.Path, "/")
 
 	if strID == "" {
@@ -49,7 +51,7 @@ func (h *Handler) GetByd(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	link, err := h.service.GetById(strID)
+	link, err := h.service.GetByID(strID)
 	if err != nil {
 		http.Error(writer, "Error while getting url", http.StatusBadRequest)
 		return
@@ -70,7 +72,11 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 		http.Error(writer, "Error while parse body", http.StatusBadRequest)
 		return
 	}
-	defer request.Body.Close()
+	defer func() {
+		if err = request.Body.Close(); err != nil {
+			logger.Logger.Error().Err(err).Msg("error while close body")
+		}
+	}()
 	if len(body) == 0 {
 		http.Error(writer, "Empty body", http.StatusBadRequest)
 		return
@@ -79,12 +85,13 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 	result, err := h.prepareRequest(request.Host, body)
 	if err != nil {
 		http.Error(writer, "Error while create short url", http.StatusBadRequest)
-		log.Printf("error: %s", err)
+		logger.Logger.Error().Err(err).Msg("Error while create short url")
 		return
 	}
 
 	writer.Header().Add("Content-Type", "text/plain")
 	writer.WriteHeader(http.StatusCreated)
+	// #nosec G705
 	_, err = writer.Write(result)
 	if err != nil {
 		http.Error(writer, "Error while write body", http.StatusBadRequest)
@@ -131,10 +138,9 @@ func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.R
 	writer.WriteHeader(http.StatusCreated)
 	_, err = writer.Write(resp)
 	if err != nil {
-		http.Error(writer, "Error while write body", http.StatusBadRequest)
+		http.Error(writer, "Error while write body", http.StatusInternalServerError)
 		return
 	}
-
 }
 
 func (h *Handler) prepareRequest(host string, url []byte) ([]byte, error) {

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	. "github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
 	"github.com/rs/zerolog"
 )
 
@@ -47,15 +47,14 @@ func WithLogging(h http.Handler) http.Handler {
 		}
 		h.ServeHTTP(&lw, r)
 		duration := time.Since(start)
-		Logger.Info().Dict(
+		logger.Logger.Info().Dict(
 			"data", zerolog.Dict().Str("Method", method).Str("URI", uri).Str("Duration", duration.String()),
 		).Msg("Request data")
-		Logger.Info().Dict(
+		logger.Logger.Info().Dict(
 			"data", zerolog.Dict().Str("Status", strconv.Itoa(responseData.status)).Str(
 				"Body size", strconv.Itoa(responseData.size),
 			),
 		).Msg("Response data")
-
 	}
 	return http.HandlerFunc(logFn)
 }

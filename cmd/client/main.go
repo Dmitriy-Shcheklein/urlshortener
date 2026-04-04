@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -31,6 +32,7 @@ func main() {
 	// пишем запрос
 	// запрос методом POST должен, помимо заголовков, содержать тело
 	// тело должно быть источником потокового чтения io.Reader
+	// #nosec G704
 	request, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(long))
 	if err != nil {
 		panic(err)
@@ -38,13 +40,18 @@ func main() {
 	// в заголовках запроса указываем кодировку
 	request.Header.Add("Content-Type", "text/plain")
 	// отправляем запрос и получаем ответ
+	// #nosec G704
 	response, err := client.Do(request)
 	if err != nil {
 		panic(err)
 	}
 	// выводим код ответа
 	fmt.Println("Статус-код ", response.Status)
-	defer response.Body.Close()
+	defer func() {
+		if err = response.Body.Close(); err != nil {
+			log.Printf("error while close body")
+		}
+	}()
 	// читаем поток из тела ответа
 	body, err := io.ReadAll(response.Body)
 	if err != nil {

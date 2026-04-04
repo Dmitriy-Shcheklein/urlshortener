@@ -14,17 +14,18 @@ type FileStoragePath struct {
 func NewFileStoragePath() *FileStoragePath {
 	path := &FileStoragePath{Path: "default"}
 
-	_ = flag.Value(path)
 	flag.Var(path, "f", "file storage path")
 
 	return path
 }
 
 func (f *FileStoragePath) ApplyEnv() {
-	if path := os.Getenv("FILE_STORAGE_PATH"); path != "" {
-		if err := f.Set(path); err != nil {
-			log.Fatalf("error while set FILE_STORAGE_PATH env: %s", err)
-		}
+	path, ok := os.LookupEnv("FILE_STORAGE_PATH")
+	if !ok {
+		return
+	}
+	if err := f.Set(path); err != nil {
+		log.Fatalf("error while set FILE_STORAGE_PATH env: %s", err)
 	}
 }
 
@@ -33,7 +34,7 @@ func (f *FileStoragePath) String() string {
 }
 
 func (f *FileStoragePath) Set(s string) error {
-	if f.IsFromEnv == true {
+	if f.IsFromEnv {
 		return nil
 	}
 

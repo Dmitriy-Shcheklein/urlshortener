@@ -19,17 +19,18 @@ type BaseAddress struct {
 func NewBaseAddress() *BaseAddress {
 	baseAddress := &BaseAddress{}
 
-	_ = flag.Value(baseAddress)
 	flag.Var(baseAddress, "b", "Base address protocol://host:port")
 
 	return baseAddress
 }
 
 func (a *BaseAddress) ApplyEnv() {
-	if baseUrl := os.Getenv("BASE_URL"); baseUrl != "" {
-		if err := a.Set(baseUrl); err != nil {
-			log.Fatalf("error while set BASE_URL env: %s", err)
-		}
+	baseURL, ok := os.LookupEnv("BASE_URL")
+	if !ok {
+		return
+	}
+	if err := a.Set(baseURL); err != nil {
+		log.Fatalf("error while set BASE_URL env: %s", err)
 	}
 }
 
@@ -38,11 +39,12 @@ func (a *BaseAddress) String() string {
 }
 
 func (a *BaseAddress) Set(s string) error {
-	if a.IsFromEnv == true {
+	if a.IsFromEnv {
 		return nil
 	}
 	hp := strings.Split(s, ":")
-	if len(hp) != 3 {
+	validLength := 3
+	if len(hp) != validLength {
 		return errors.New("need address in a form protocol://host:port")
 	}
 	port, err := strconv.Atoi(hp[2])

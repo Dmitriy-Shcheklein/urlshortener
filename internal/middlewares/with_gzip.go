@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
 )
 
 type gzipWriter struct {
@@ -29,7 +31,7 @@ func WithGzip(h http.Handler) http.Handler {
 			}
 			gzWriter := gzipWriter{ResponseWriter: w}
 
-			if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			if isAcceptEncoding {
 				validTypes := map[string]bool{
 					"application/json": true,
 					"text/plain":       true,
@@ -48,32 +50,44 @@ func WithGzip(h http.Handler) http.Handler {
 					http.Error(w, "error while create gzip", http.StatusBadRequest)
 					return
 				}
-				defer gz.Close()
+				defer func() {
+					if err = gz.Close(); err != nil {
+						logger.Logger.Error().Err(err).Msg("error while close gzip writer")
+					}
+				}()
 
 				w.Header().Set("Content-Encoding", "gzip")
 				gzWriter.Writer = gz
 			}
 
-			if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
-				gzReader, err := gzip.NewReader(r.Body)
-				if err != nil {
-					http.Error(w, "error while read gzip", http.StatusBadRequest)
-					return
-				}
-
-				decompressed, err := io.ReadAll(gzReader)
-				if err != nil {
-					http.Error(w, "Failed to decompress", http.StatusBadRequest)
-					return
-				}
-				r.Body.Close()
-				gzReader.Close()
-
-				r.Body = io.NopCloser(bytes.NewReader(decompressed))
-				r.Header.Del("Content-Encoding")
-				r.ContentLength = int64(len(decompressed))
+			if isContentEncoding {
+				decompressRequest(w, r)
 			}
 			h.ServeHTTP(gzWriter, r)
 		},
 	)
+}
+
+func decompressRequest(w http.ResponseWriter, r *http.Request) {
+	gzReader, err := gzip.NewReader(r.Body)
+	if err != nil {
+		http.Error(w, "error while read gzip", http.StatusBadRequest)
+		return
+	}
+
+	decompressed, err := io.ReadAll(gzReader)
+	if err != nil {
+		http.Error(w, "Failed to decompress", http.StatusBadRequest)
+		return
+	}
+	if err = r.Body.Close(); err != nil {
+		logger.Logger.Error().Err(err).Msg("error while clode rea")
+	}
+	if err = gzReader.Close(); err != nil {
+		logger.Logger.Error().Err(err).Msg("error while close gzip reader")
+	}
+
+	r.Body = io.NopCloser(bytes.NewReader(decompressed))
+	r.Header.Del("Content-Encoding")
+	r.ContentLength = int64(len(decompressed))
 }

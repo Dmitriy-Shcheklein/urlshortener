@@ -1,0 +1,50 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - govet
+    - errcheck
+    - gocyclo
+    - misspell
+    - unconvert
+    - unused
+    - gosec
+    - gocognit
+    - revive
+    - staticcheck
+  settings:
+    govet:
+      enable:
+        - shadow
+    gocyclo:
+      min-complexity: 15
+    gocognit:
+      min-complexity: 20
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
+    revive:
+      rules:
+        - name: exported
+          severity: warning
+          disabled: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+run:
+  timeout: 5m
+  tests: true
+
+issues:
+  uniq-by-line: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
