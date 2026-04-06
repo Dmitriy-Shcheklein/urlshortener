@@ -23,3 +23,21 @@ lint:
 	else \
 		echo "⚠️  golangci-lint not installed, skipping linting"; \
 	fi
+
+.PHONY: mock-generate
+mock-generate: install-minimock
+	@echo "📦 Generating mocks..."
+	@go generate ./...
+	@echo "✅ Mock generation completed"
+
+.PHONY: mock-clean
+mock-clean:
+	@echo "🧹 Cleaning generated mocks..."
+	@find . -name "*_mock_test.go" -type f -delete
+	@echo "✅ Mocks cleaned"
+
+.PHONY: install-minimock
+install-minimock:
+	@echo "Installing minimock"
+	@go install github.com/gojuno/minimock/v3/cmd/minimock@latest
+	@echo "Minimock installed"

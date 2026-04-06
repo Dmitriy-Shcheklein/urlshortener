@@ -10,12 +10,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/bootstrap"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config"
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/handler"
+	pool "github.com/Dmitriy-Shcheklein/urlshortener/internal/config/db/postgres"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/handler/shortener"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/middlewares"
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository"
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/service"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/file_storage"
+	shService "github.com/Dmitriy-Shcheklein/urlshortener/internal/services/shortener"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/rs/zerolog"
@@ -37,13 +39,21 @@ func main() {
 	router.Use(middleware.Timeout(time.Minute))
 	router.Use(middlewares.WithGzip)
 
-	handlers, err := handler.New(service.New(repository.New(cfg)), cfg)
+	dbPool, err := pool.NewPool(cfg.DbDSN)
+	if err != nil {
+		log.Fatalf("error while create pool: %s", err)
+	}
+
+	handlers, err := shortener.New(shService.New(file_storage.New(cfg)), cfg)
 	if err != nil {
 		log.Fatalf("error while create handlers: %s", err)
 	}
+
+	hcHandler, err := bootstrap.BootstrapHealthcheck(cfg, dbPool)
 	router.Post("/", handlers.CreateShort)
 	router.Get("/{id}", handlers.GetByID)
 	router.Post("/api/shorten", handlers.CreateFromJSONBody)
+	router.Get("/ping", hcHandler.PingDB)
 
 	server := &http.Server{
 		Addr:              cfg.GetNetAddress(),
@@ -54,13 +64,8 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	//err = server.ListenAndServe()
-	//if err != nil {
-	//	log.Fatalf("error while start server: %s", err)
-	//}
-
 	go func() {
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err = server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("http server stopped: %v", err)
 		}
 	}()
@@ -77,6 +82,8 @@ func main() {
 
 	if err = server.Shutdown(ctx); err != nil {
 		log.Printf("Server forced to shutdown: %v", err)
+		dbPool.Stop()
+		log.Printf("Database stopped: %v", err)
 		if err = server.Close(); err != nil {
 			log.Printf("Server close error: %v", err)
 		}

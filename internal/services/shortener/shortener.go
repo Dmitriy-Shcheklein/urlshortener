@@ -1,4 +1,4 @@
-package service
+package shortener
 
 import (
 	"encoding/base64"
@@ -6,21 +6,21 @@ import (
 	"hash/crc32"
 )
 
-type Repository interface {
+type LinkRepository interface {
 	GetByID(ID string) ([]byte, error)
 	Save(path []byte, short []byte) error
 }
 
 type Service struct {
-	repository Repository
+	linkRepository LinkRepository
 }
 
-func New(repository Repository) *Service {
-	return &Service{repository: repository}
+func New(repository LinkRepository) *Service {
+	return &Service{linkRepository: repository}
 }
 
 func (s *Service) GetByID(id string) ([]byte, error) {
-	link, err := s.repository.GetByID(id)
+	link, err := s.linkRepository.GetByID(id)
 	if err != nil {
 		return link, err
 	}
@@ -30,7 +30,7 @@ func (s *Service) GetByID(id string) ([]byte, error) {
 func (s *Service) CreateShort(originalURL []byte) ([]byte, error) {
 	short := shortenURLCRC32(originalURL)
 
-	if err := s.repository.Save(originalURL, short); err != nil {
+	if err := s.linkRepository.Save(originalURL, short); err != nil {
 		return short, err
 	}
 

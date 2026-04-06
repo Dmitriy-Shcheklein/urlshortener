@@ -3,6 +3,8 @@ package config
 import (
 	"flag"
 	"strconv"
+
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config/db/postgres"
 )
 
 type Config struct {
@@ -10,6 +12,7 @@ type Config struct {
 	Host            string
 	BaseAddress     []byte
 	FileStoragePath string
+	DbDSN           string
 }
 
 type FromEnv struct {
@@ -21,15 +24,18 @@ func New() (*Config, error) {
 	netAddress := NewNetAddress()
 	baseAddress := NewBaseAddress()
 	fileStoragePath := NewFileStoragePath()
+	dsn := postgres.NewDSN()
 	flag.Parse()
 	netAddress.ApplyEnv()
 	baseAddress.ApplyEnv()
 	fileStoragePath.ApplyEnv()
+	dsn.ApplyEnv()
 
 	cfg := Config{
 		Host:            netAddress.Host,
 		Port:            netAddress.Port,
 		FileStoragePath: fileStoragePath.Path,
+		DbDSN:           dsn.Value,
 	}
 
 	if baseAddress.IsFulfilled() {
