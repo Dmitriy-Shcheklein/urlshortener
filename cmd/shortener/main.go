@@ -40,8 +40,12 @@ func main() {
 	router.Use(middlewares.WithGzip)
 
 	dbPool, err := pool.NewPool(cfg.DbDSN)
-	if err != nil {
-		log.Fatalf("error while create pool: %s", err)
+	if err == nil {
+		hcHandler, err := bootstrap.BootstrapHealthcheck(cfg, dbPool)
+		if err != nil {
+			log.Fatalf("error while bootstrap healthcheck handler: %s", err)
+		}
+		router.Get("/ping", hcHandler.PingDB)
 	}
 
 	handlers, err := shortener.New(shService.New(file_storage.New(cfg)), cfg)
@@ -49,11 +53,9 @@ func main() {
 		log.Fatalf("error while create handlers: %s", err)
 	}
 
-	hcHandler, err := bootstrap.BootstrapHealthcheck(cfg, dbPool)
 	router.Post("/", handlers.CreateShort)
 	router.Get("/{id}", handlers.GetByID)
 	router.Post("/api/shorten", handlers.CreateFromJSONBody)
-	router.Get("/ping", hcHandler.PingDB)
 
 	server := &http.Server{
 		Addr:              cfg.GetNetAddress(),
