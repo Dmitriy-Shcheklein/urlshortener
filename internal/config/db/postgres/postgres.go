@@ -24,10 +24,6 @@ func NewPool(connString string) (*Pool, error) {
 	}
 	pool.pool = newPool
 
-	if err = pool.Ping(); err != nil {
-		return pool, err
-	}
-
 	return pool, nil
 }
 
