@@ -26,10 +26,12 @@ func TestHealthcheckRepository(t *testing.T) {
 
 			t.Run(
 				"Должен создать экземпляр без ошибок", func(t *testing.T) {
-					repo, err := New(&PoolMock{})
+					mockPool = &PoolMock{}
+					repo, err := New(mockPool)
 
 					require.NoError(t, err)
 					assert.NotNil(t, repo)
+					assert.Equal(t, mockPool, repo.pool)
 				},
 			)
 

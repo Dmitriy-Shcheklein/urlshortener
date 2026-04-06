@@ -16,6 +16,7 @@ func New(pool Pool) (*Repository, error) {
 	if pool == nil {
 		return repository, errors.New("pool must be not nil")
 	}
+	repository.pool = pool
 	return repository, nil
 }
 
