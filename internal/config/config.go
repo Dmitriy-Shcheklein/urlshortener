@@ -12,7 +12,12 @@ type Config struct {
 	Host            string
 	BaseAddress     []byte
 	FileStoragePath string
-	DbDSN           string
+	DbDSN           DbDSN
+}
+
+type DbDSN struct {
+	Value   string
+	IsValid bool
 }
 
 type FromEnv struct {
@@ -35,7 +40,10 @@ func New() (*Config, error) {
 		Host:            netAddress.Host,
 		Port:            netAddress.Port,
 		FileStoragePath: fileStoragePath.Path,
-		DbDSN:           dsn.Value,
+	}
+
+	if dsn.Value != "" {
+		cfg.DbDSN = DbDSN{Value: dsn.Value, IsValid: true}
 	}
 
 	if baseAddress.IsFulfilled() {

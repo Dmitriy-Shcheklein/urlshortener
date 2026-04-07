@@ -13,11 +13,8 @@ import (
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/bootstrap"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config"
 	pool "github.com/Dmitriy-Shcheklein/urlshortener/internal/config/db/postgres"
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/handler/shortener"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/middlewares"
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/file_storage"
-	shService "github.com/Dmitriy-Shcheklein/urlshortener/internal/services/shortener"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/rs/zerolog"
@@ -39,23 +36,19 @@ func main() {
 	router.Use(middleware.Timeout(time.Minute))
 	router.Use(middlewares.WithGzip)
 
-	dbPool, err := pool.NewPool(cfg.DbDSN)
-	if err == nil {
-		hcHandler, err := bootstrap.BootstrapHealthcheck(cfg, dbPool)
-		if err != nil {
+	dbPool, err := pool.NewPool(cfg.DbDSN.Value)
+	if err != nil && cfg.DbDSN.IsValid {
+		log.Fatalf("error while creating pool: %s", err)
+	}
+
+	if cfg.DbDSN.IsValid {
+		if err = bootstrap.InitHealthcheck(cfg, dbPool, router); err != nil {
 			log.Fatalf("error while bootstrap healthcheck handler: %s", err)
 		}
-		router.Get("/ping", hcHandler.PingDB)
 	}
-
-	handlers, err := shortener.New(shService.New(file_storage.New(cfg)), cfg)
-	if err != nil {
+	if err = bootstrap.InitShortener(cfg, dbPool, router); err != nil {
 		log.Fatalf("error while create handlers: %s", err)
 	}
-
-	router.Post("/", handlers.CreateShort)
-	router.Get("/{id}", handlers.GetByID)
-	router.Post("/api/shorten", handlers.CreateFromJSONBody)
 
 	server := &http.Server{
 		Addr:              cfg.GetNetAddress(),

@@ -6,21 +6,25 @@ import (
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/handler/healthcheck"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/postgres"
 	hcService "github.com/Dmitriy-Shcheklein/urlshortener/internal/services/healthcheck"
+	"github.com/go-chi/chi"
 )
 
-func BootstrapHealthcheck(cfg *config.Config, pool *pool.Pool) (*healthcheck.Handler, error) {
+func InitHealthcheck(_ *config.Config, pool *pool.Pool, router *chi.Mux) error {
 	pgRepo, err := postgres.New(pool)
 	if err != nil {
-		return &healthcheck.Handler{}, err
+		return err
 	}
 	hcs, err := hcService.New(pgRepo)
 	if err != nil {
-		return &healthcheck.Handler{}, err
+		return err
 	}
 
 	hcHandlers, err := healthcheck.New(hcs)
 	if err != nil {
-		return &healthcheck.Handler{}, err
+		return err
 	}
-	return hcHandlers, err
+
+	router.Get("/ping", hcHandlers.PingDB)
+
+	return err
 }
