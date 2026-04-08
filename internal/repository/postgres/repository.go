@@ -61,8 +61,11 @@ func (r *Repository) Save(originalUrl []byte, shortUrl []byte) error {
 	defer cancel()
 
 	query := fmt.Sprintf("INSERT INTO %s (short_url, original_url) VALUES ($1, $2)", "links")
+	fmt.Println("Query: ", query)
 
-	_, err := r.pool.Exec(ctx, query, string(shortUrl), string(originalUrl))
+	_, err := r.pool.Exec(
+		ctx, query, string(shortUrl), string(originalUrl),
+	)
 	if err != nil {
 		return fmt.Errorf("insert failed: %w", err)
 	}

@@ -1,6 +1,9 @@
 package bootstrap
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -12,6 +15,8 @@ func RunMigration(connString string) error {
 	if err != nil {
 		return err
 	}
-	return m.Up()
-
+	if err = m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf("migration failed: %w", err)
+	}
+	return nil
 }

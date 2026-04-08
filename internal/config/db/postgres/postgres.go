@@ -44,17 +44,13 @@ func (p *Pool) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, er
 }
 
 func (p *Pool) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
-	return p.pool.QueryRow(ctx, sql, args)
+	return p.pool.QueryRow(ctx, sql, args...)
 }
 
 func (p *Pool) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
-	return p.pool.Exec(ctx, sql, args)
+	return p.pool.Exec(ctx, sql, args...)
 }
 
 func (p *Pool) Stop() {
 	p.pool.Close()
-}
-
-func (p *Pool) GetOriginalPool() *pgxpool.Pool {
-	return p.pool
 }
