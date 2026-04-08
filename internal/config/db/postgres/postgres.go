@@ -54,3 +54,7 @@ func (p *Pool) Exec(ctx context.Context, sql string, args ...any) (pgconn.Comman
 func (p *Pool) Stop() {
 	p.pool.Close()
 }
+
+func (p *Pool) GetOriginalPool() *pgxpool.Pool {
+	return p.pool
+}

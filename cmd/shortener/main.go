@@ -42,6 +42,9 @@ func main() {
 	}
 
 	if cfg.DbDSN.IsValid {
+		if err = bootstrap.RunMigration(cfg.DbDSN.Value); err != nil {
+			log.Fatalf("error while execute migrations: %s", err)
+		}
 		if err = bootstrap.InitHealthcheck(cfg, dbPool, router); err != nil {
 			log.Fatalf("error while bootstrap healthcheck handler: %s", err)
 		}
