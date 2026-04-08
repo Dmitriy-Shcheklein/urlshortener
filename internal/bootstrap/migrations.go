@@ -1,6 +1,9 @@
 package bootstrap
 
-import "github.com/golang-migrate/migrate/v4"
+import (
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+)
 
 func RunMigration(connString string) error {
 	m, err := migrate.New("file://./migrations", connString)
