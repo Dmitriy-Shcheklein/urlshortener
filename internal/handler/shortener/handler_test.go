@@ -11,7 +11,6 @@ import (
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 type errorReader struct {
@@ -22,59 +21,24 @@ func (r *errorReader) Read(_ []byte) (int, error) {
 	return 0, r.err
 }
 
-type MockService struct {
-	mock.Mock
-}
-
-func (s *MockService) GetByID(id string) ([]byte, error) {
-	args := s.Called(id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]byte), args.Error(1)
-}
-func (s *MockService) CreateShort(originalURL []byte) ([]byte, error) {
-	args := s.Called(originalURL)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]byte), args.Error(1)
-}
-
-type MockConfig struct {
-	mock.Mock
-}
-
-func (c *MockConfig) GetBaseAddress() []byte {
-	args := c.Called()
-	if args.Get(0) == nil {
-		return []byte("")
-	}
-	return args.Get(0).([]byte)
-}
-
-func (h *Handler) GetService() Service {
-	return h.service
-}
-
 func TestNew(t *testing.T) {
-	service := &MockService{}
-	config := &MockConfig{}
+	service := NewMockService(t)
+	config := NewMockConfig(t)
 	handler, _ := New(service, config)
 	assert.NotNil(t, handler, "Указатель на обработчик не должен быть nil")
-	assert.NotNil(t, handler.GetService(), "Указатель на сервис не должен быть nil")
+	assert.NotNil(t, handler.service, "Указатель на сервис не должен быть nil")
 }
 
 func TestNewErrors(t *testing.T) {
 	t.Run(
 		"Ошибка, сервис не инициализирован", func(t *testing.T) {
-			_, err := New(nil, &MockConfig{})
+			_, err := New(nil, NewMockConfig(t))
 			assert.Equal(t, errors.New("handler service must be not nil"), err)
 		},
 	)
 	t.Run(
 		"Ошибка, конфиг не инициализирован", func(t *testing.T) {
-			_, err := New(&MockService{}, nil)
+			_, err := New(NewMockService(t), nil)
 			assert.Equal(t, errors.New("handler config must be not nil"), err)
 		},
 	)
@@ -91,27 +55,22 @@ func TestGetById(t *testing.T) {
 		path     string
 	)
 
-	setup := func() {
+	setup := func(t *testing.T) {
 		path = "test"
 		fullLink = []byte("fullLink")
 		request = httptest.NewRequest(http.MethodGet, "/"+path, nil)
 		writer = httptest.NewRecorder()
-		service = &MockService{}
-		config = &MockConfig{}
+		service = NewMockService(t)
+		config = NewMockConfig(t)
 
 		handler, _ = New(service, config)
 	}
 
-	teardown := func() {
-		service.AssertExpectations(t)
-	}
-
 	t.Run(
 		"Должен выполниться без ошибок", func(t *testing.T) {
-			setup()
-			defer teardown()
+			setup(t)
 
-			service.On("GetByID", path).Return(fullLink, nil)
+			service.EXPECT().GetByID(path).Return(fullLink, nil)
 
 			assert.NotPanics(
 				t, func() {
@@ -123,9 +82,9 @@ func TestGetById(t *testing.T) {
 
 	t.Run(
 		"Должен установить заголовки ответа", func(t *testing.T) {
-			setup()
+			setup(t)
 
-			service.On("GetByID", path).Return(fullLink, nil)
+			service.EXPECT().GetByID(path).Return(fullLink, nil)
 
 			handler.GetByID(writer, request)
 
@@ -137,7 +96,7 @@ func TestGetById(t *testing.T) {
 
 	t.Run(
 		"Ошибка, не указана короткая ссылка", func(t *testing.T) {
-			setup()
+			setup(t)
 			request = httptest.NewRequest(http.MethodGet, "/", nil)
 
 			handler.GetByID(writer, request)
@@ -149,9 +108,9 @@ func TestGetById(t *testing.T) {
 
 	t.Run(
 		"Ошибка при получении ссылки из сервиса", func(t *testing.T) {
-			setup()
-			defer teardown()
-			service.On("GetByID", path).Return(nil, assert.AnError)
+			setup(t)
+
+			service.EXPECT().GetByID(path).Return(fullLink, assert.AnError)
 
 			handler.GetByID(writer, request)
 
@@ -177,7 +136,7 @@ func TestCreateShort(t *testing.T) {
 
 	logger.InitLogger(zerolog.Disabled)
 
-	setup := func() {
+	setup := func(t *testing.T) {
 		path = "/"
 		fullLink = "https://ya.ru"
 		shortLink = []byte("short")
@@ -185,23 +144,18 @@ func TestCreateShort(t *testing.T) {
 		request = httptest.NewRequest(http.MethodGet, path, body)
 		request.Header.Set("Content-Type", "text/plain")
 		writer = httptest.NewRecorder()
-		service = &MockService{}
-		config = &MockConfig{}
+		service = NewMockService(t)
+		config = NewMockConfig(t)
 
 		handler, _ = New(service, config)
 	}
 
-	teardown := func() {
-		service.AssertExpectations(t)
-	}
-
 	t.Run(
 		"Должен выполниться без ошибок", func(t *testing.T) {
-			setup()
-			defer teardown()
+			setup(t)
 
-			service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
-			config.On("GetBaseAddress").Return(baseAddress)
+			service.EXPECT().CreateShort([]byte(fullLink)).Return(shortLink, nil)
+			config.EXPECT().GetBaseAddress().Return(baseAddress)
 
 			assert.NotPanics(
 				t, func() {
@@ -222,10 +176,10 @@ func TestCreateShort(t *testing.T) {
 			}
 
 			for _, test := range tests {
-				setup()
+				setup(t)
 
-				service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
-				config.On("GetBaseAddress").Return(test.baseAddress)
+				service.EXPECT().CreateShort([]byte(fullLink)).Return(shortLink, nil)
+				config.EXPECT().GetBaseAddress().Return(test.baseAddress)
 
 				handler.CreateShort(writer, request)
 
@@ -237,11 +191,8 @@ func TestCreateShort(t *testing.T) {
 	)
 	t.Run(
 		"Ошибка, некорректный content-type", func(t *testing.T) {
-			setup()
+			setup(t)
 			request.Header.Set("Content-Type", "application/json")
-
-			service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
-			config.On("GetBaseAddress").Return(baseAddress)
 
 			handler.CreateShort(writer, request)
 
@@ -252,12 +203,9 @@ func TestCreateShort(t *testing.T) {
 
 	t.Run(
 		"Ошибка, пустое тело запрос", func(t *testing.T) {
-			setup()
+			setup(t)
 			request = httptest.NewRequest(http.MethodGet, path, nil)
 			request.Header.Set("Content-Type", "text/plain")
-
-			service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
-			config.On("GetBaseAddress").Return(baseAddress)
 
 			handler.CreateShort(writer, request)
 
@@ -268,26 +216,22 @@ func TestCreateShort(t *testing.T) {
 
 	t.Run(
 		"Ошибка создания короткой ссылки", func(t *testing.T) {
-			setup()
+			setup(t)
 
-			service.On("CreateShort", []byte(fullLink)).Return(nil, assert.AnError)
-			config.On("GetBaseAddress").Return(baseAddress)
+			service.EXPECT().CreateShort([]byte(fullLink)).Return(nil, assert.AnError)
 
 			handler.CreateShort(writer, request)
 
-			assert.Equal(t, http.StatusBadRequest, writer.Code)
+			assert.Equal(t, http.StatusInternalServerError, writer.Code)
 			assert.Equal(t, "Error while create short url\n", writer.Body.String())
 		},
 	)
 
 	t.Run(
 		"Ошибка при чтении тела запроса", func(t *testing.T) {
-			setup()
+			setup(t)
 			request = httptest.NewRequest(http.MethodGet, path, &errorReader{err: errors.New("read error")})
 			request.Header.Set("Content-Type", "text/plain")
-
-			service.On("CreateShort", []byte(fullLink)).Return(nil, assert.AnError)
-			config.On("GetBaseAddress").Return(baseAddress)
 
 			handler.CreateShort(writer, request)
 
@@ -311,7 +255,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 		baseAddress []byte
 	)
 
-	setup := func() {
+	setup := func(t *testing.T) {
 		path = "/"
 		fullLink = "https://practicum.yandex.ru"
 		shortLink = []byte("short")
@@ -319,23 +263,18 @@ func TestCreateFromJSONBody(t *testing.T) {
 		request = httptest.NewRequest(http.MethodPost, path, body)
 		request.Header.Set("Content-Type", "application/json")
 		writer = httptest.NewRecorder()
-		service = &MockService{}
-		config = &MockConfig{}
+		service = NewMockService(t)
+		config = NewMockConfig(t)
 
 		handler, _ = New(service, config)
 	}
 
-	teardown := func() {
-		service.AssertExpectations(t)
-	}
-
 	t.Run(
 		"Должен выполниться без ошибок", func(t *testing.T) {
-			setup()
-			defer teardown()
+			setup(t)
 
-			service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
-			config.On("GetBaseAddress").Return(baseAddress)
+			service.EXPECT().CreateShort([]byte(fullLink)).Return(shortLink, nil)
+			config.EXPECT().GetBaseAddress().Return(baseAddress)
 
 			assert.NotPanics(
 				t, func() {
@@ -356,10 +295,10 @@ func TestCreateFromJSONBody(t *testing.T) {
 			}
 
 			for _, test := range tests {
-				setup()
+				setup(t)
 
-				service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
-				config.On("GetBaseAddress").Return(test.baseAddress)
+				service.EXPECT().CreateShort([]byte(fullLink)).Return(shortLink, nil)
+				config.EXPECT().GetBaseAddress().Return(test.baseAddress)
 
 				handler.CreateFromJSONBody(writer, request)
 
@@ -371,11 +310,8 @@ func TestCreateFromJSONBody(t *testing.T) {
 	)
 	t.Run(
 		"Ошибка, некорректный content-type", func(t *testing.T) {
-			setup()
+			setup(t)
 			request.Header.Set("Content-Type", "text/plain")
-
-			service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
-			config.On("GetBaseAddress").Return(baseAddress)
 
 			handler.CreateFromJSONBody(writer, request)
 
@@ -386,12 +322,9 @@ func TestCreateFromJSONBody(t *testing.T) {
 
 	t.Run(
 		"Ошибка, пустое тело запрос", func(t *testing.T) {
-			setup()
+			setup(t)
 			request = httptest.NewRequest(http.MethodGet, path, nil)
 			request.Header.Set("Content-Type", "application/json")
-
-			service.On("CreateShort", []byte(fullLink)).Return(shortLink, nil)
-			config.On("GetBaseAddress").Return(baseAddress)
 
 			handler.CreateFromJSONBody(writer, request)
 
@@ -402,26 +335,22 @@ func TestCreateFromJSONBody(t *testing.T) {
 
 	t.Run(
 		"Ошибка создания короткой ссылки", func(t *testing.T) {
-			setup()
+			setup(t)
 
-			service.On("CreateShort", []byte(fullLink)).Return(nil, assert.AnError)
-			config.On("GetBaseAddress").Return(baseAddress)
+			service.EXPECT().CreateShort([]byte(fullLink)).Return(nil, assert.AnError)
 
 			handler.CreateFromJSONBody(writer, request)
 
-			assert.Equal(t, http.StatusBadRequest, writer.Code)
+			assert.Equal(t, http.StatusInternalServerError, writer.Code)
 			assert.Equal(t, "Error while create short url\n", writer.Body.String())
 		},
 	)
 
 	t.Run(
 		"Ошибка при чтении тела запроса", func(t *testing.T) {
-			setup()
+			setup(t)
 			request = httptest.NewRequest(http.MethodGet, path, &errorReader{err: errors.New("read error")})
 			request.Header.Set("Content-Type", "application/json")
-
-			service.On("CreateShort", []byte(fullLink)).Return(nil, assert.AnError)
-			config.On("GetBaseAddress").Return(baseAddress)
 
 			handler.CreateFromJSONBody(writer, request)
 

@@ -25,19 +25,23 @@ lint:
 	fi
 
 .PHONY: mock-generate
-mock-generate: install-minimock
+mock-generate: mock-clean
 	@echo "📦 Generating mocks..."
-	@go generate ./...
+	@mockery
 	@echo "✅ Mock generation completed"
 
 .PHONY: mock-clean
 mock-clean:
 	@echo "🧹 Cleaning generated mocks..."
-	@find . -name "*_mock_test.go" -type f -delete
+	@find . -name "mocks_test.go" -type f -delete
 	@echo "✅ Mocks cleaned"
 
-.PHONY: install-minimock
-install-minimock:
-	@echo "Installing minimock"
-	@go install github.com/gojuno/minimock/v3/cmd/minimock@latest
-	@echo "Minimock installed"
+
+.PHONY: fmt
+fmt:
+	@echo "✨ Formatting code..."
+	@if command -v gofumpt > /dev/null; then \
+		gofumpt -w -l .; \
+	else \
+		echo "⚠️  gofumpt not installed, skipping formatting"; \
+	fi

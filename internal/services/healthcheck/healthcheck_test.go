@@ -3,30 +3,27 @@ package healthcheck
 import (
 	"testing"
 
-	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHealthcheckService(t *testing.T) {
 	var (
-		mockRepository *RepositoryMock
+		mockRepository *MockRepository
 		service        *Service
 	)
 
 	setup := func(t *testing.T) {
-		ctrl := minimock.NewController(t)
-		mockRepository = NewRepositoryMock(ctrl)
+		mockRepository = NewMockRepository(t)
 
 		service = &Service{repository: mockRepository}
 	}
 
 	t.Run(
 		"Тест создания сервиса", func(t *testing.T) {
-
 			t.Run(
 				"Должен создать экземпляр без ошибок", func(t *testing.T) {
-					repository, err := New(&RepositoryMock{})
+					repository, err := New(&MockRepository{})
 
 					require.NoError(t, err)
 					assert.NotNil(t, repository)
@@ -49,7 +46,7 @@ func TestHealthcheckService(t *testing.T) {
 				"Должен выполниться без ошибок", func(t *testing.T) {
 					setup(t)
 
-					mockRepository.PingMock.Expect().Return(nil)
+					mockRepository.EXPECT().Ping().Return(nil)
 
 					err := service.PingDB()
 
@@ -62,7 +59,7 @@ func TestHealthcheckService(t *testing.T) {
 					setup(t)
 
 					expectedErr := assert.AnError
-					mockRepository.PingMock.Expect().Return(expectedErr)
+					mockRepository.EXPECT().Ping().Return(expectedErr)
 
 					err := service.PingDB()
 

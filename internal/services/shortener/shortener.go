@@ -4,11 +4,15 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"hash/crc32"
+
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/handler/shortener"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 )
 
 type LinkRepository interface {
 	GetByID(ID string) ([]byte, error)
 	Save(path []byte, short []byte) error
+	SaveMany(values []model.LinkRow) error
 }
 
 type Service struct {
@@ -35,6 +39,26 @@ func (s *Service) CreateShort(originalURL []byte) ([]byte, error) {
 	}
 
 	return short, nil
+}
+
+func (s *Service) CreateMany(values []shortener.CreateManyBodyRaw) (
+	[]shortener.CreateManyResponseRaw, error,
+) {
+	shorts := make([]shortener.CreateManyResponseRaw, len(values))
+	for i := range values {
+		shortValue := shortenURLCRC32([]byte(values[i].OriginalUrl))
+		shorts[i].ShortURL = string(shortValue)
+		shorts[i].CorrelationId = values[i].CorrelationID
+	}
+
+	payload := make([]model.LinkRow, len(values))
+	for i := range values {
+		payload[i].OriginalURL = values[i].OriginalUrl
+		payload[i].ShortURL = shorts[i].ShortURL
+	}
+
+	err := s.linkRepository.SaveMany(payload)
+	return shorts, err
 }
 
 func shortenURLCRC32(url []byte) []byte {

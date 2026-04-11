@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS links
 (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     short_url VARCHAR(255) NOT NULL,
     original_url VARCHAR(255) NOT NULL
     );

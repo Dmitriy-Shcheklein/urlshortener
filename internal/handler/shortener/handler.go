@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
@@ -15,7 +14,9 @@ import (
 type Service interface {
 	GetByID(ID string) ([]byte, error)
 	CreateShort(originalURL []byte) ([]byte, error)
+	CreateMany(values []CreateManyBodyRaw) ([]CreateManyResponseRaw, error)
 }
+
 type Config interface {
 	GetBaseAddress() []byte
 }
@@ -30,6 +31,14 @@ type CreateShortBody struct {
 }
 type CreateShortResponse struct {
 	Result string `json:"result"`
+}
+type CreateManyBodyRaw struct {
+	CorrelationID string `json:"correlation_id" validate:"required"`
+	OriginalUrl   string `json:"original_url" validate:"required"`
+}
+type CreateManyResponseRaw struct {
+	CorrelationId string `json:"correlation_id" validate:"required"`
+	ShortURL      string `json:"short_url" validate:"required"`
 }
 
 func New(service Service, config Config) (*Handler, error) {
@@ -81,20 +90,19 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 		http.Error(writer, "Empty body", http.StatusBadRequest)
 		return
 	}
-
-	result, err := h.prepareRequest(request.Host, body)
+	short, err := h.service.CreateShort(body)
 	if err != nil {
-		http.Error(writer, "Error while create short url", http.StatusBadRequest)
-		logger.Logger.Error().Err(err).Msg("Error while create short url")
+		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
 		return
 	}
+	result := h.prepareRequest(request.Host, short)
 
 	writer.Header().Add("Content-Type", "text/plain")
 	writer.WriteHeader(http.StatusCreated)
 	// #nosec G705
 	_, err = writer.Write(result)
 	if err != nil {
-		http.Error(writer, "Error while write body", http.StatusBadRequest)
+		http.Error(writer, "Error while write body", http.StatusInternalServerError)
 		return
 	}
 }
@@ -118,12 +126,12 @@ func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	result, err := h.prepareRequest(request.Host, []byte(body.URL))
+	short, err := h.service.CreateShort([]byte(body.URL))
 	if err != nil {
-		http.Error(writer, "Error while create short url", http.StatusBadRequest)
-		log.Printf("error: %s", err)
+		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
 		return
 	}
+	result := h.prepareRequest(request.Host, short)
 	response := &CreateShortResponse{
 		Result: string(result),
 	}
@@ -143,14 +151,51 @@ func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.R
 	}
 }
 
-func (h *Handler) prepareRequest(host string, url []byte) ([]byte, error) {
-	var result []byte
+func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) {
+	if contentType := request.Header.Get("Content-Type"); contentType != "application/json" {
+		http.Error(writer, "Invalid content-type", http.StatusBadRequest)
+		return
+	}
+	var body []CreateManyBodyRaw
+	validate := validator.New()
 
-	short, err := h.service.CreateShort(url)
-	if err != nil {
-		return result, err
+	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+		http.Error(writer, "Error while decode body", http.StatusBadRequest)
+		return
+	}
+	if err := validate.Struct(body); err != nil {
+		http.Error(writer, "Error while validate body", http.StatusBadRequest)
+		return
 	}
 
+	shorts, err := h.service.CreateMany(body)
+	if err != nil {
+		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
+		return
+	}
+
+	for i := range shorts {
+		res := h.prepareRequest(request.Host, []byte(shorts[i].ShortURL))
+		shorts[i].ShortURL = string(res)
+	}
+
+	resp, err := json.Marshal(shorts)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writer.Header().Add("Content-Type", "application/json")
+	writer.WriteHeader(http.StatusCreated)
+	_, err = writer.Write(resp)
+	if err != nil {
+		http.Error(writer, "Error while write body", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *Handler) prepareRequest(host string, short []byte) []byte {
+	var result []byte
 	if len(h.config.GetBaseAddress()) != 0 {
 		result = append(h.config.GetBaseAddress(), "/"...)
 		result = append(result, short...)
@@ -161,5 +206,5 @@ func (h *Handler) prepareRequest(host string, url []byte) ([]byte, error) {
 		result = append(result, short...)
 	}
 
-	return result, nil
+	return result
 }

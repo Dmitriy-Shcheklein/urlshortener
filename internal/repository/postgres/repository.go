@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -15,11 +16,6 @@ type Pool interface {
 	Ping() error
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-}
-
-type LinkRow struct {
-	ShortURL    string `json:"short_url"`
-	OriginalURL string `json:"original_url"`
 }
 
 type Repository struct {
@@ -65,6 +61,34 @@ func (r *Repository) Save(originalUrl []byte, shortUrl []byte) error {
 
 	_, err := r.pool.Exec(
 		ctx, query, string(shortUrl), string(originalUrl),
+	)
+	if err != nil {
+		return fmt.Errorf("insert failed: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) SaveMany(values []model.LinkRow) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	if len(values) == 0 {
+		return nil
+	}
+
+	query := "INSERT INTO urls (short_url, original_url) VALUES "
+	args := make([]interface{}, 0, len(values)*2)
+
+	for i, item := range values {
+		if i > 0 {
+			query += ", "
+		}
+		query += fmt.Sprintf("($%d, $%d)", i*2+1, i*2+2)
+		args = append(args, item.ShortURL, item.OriginalURL)
+	}
+
+	_, err := r.pool.Exec(
+		ctx, query, args...,
 	)
 	if err != nil {
 		return fmt.Errorf("insert failed: %w", err)

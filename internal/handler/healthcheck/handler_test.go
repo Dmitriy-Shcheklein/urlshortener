@@ -5,22 +5,20 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHealthcheckHandler(t *testing.T) {
 	var (
-		mockService *ServiceMock
+		mockService *MockService
 		handler     *Handler
 		response    *httptest.ResponseRecorder
 		request     *http.Request
 	)
 
 	setup := func(t *testing.T) {
-		ctrl := minimock.NewController(t)
-		mockService = NewServiceMock(ctrl)
+		mockService = NewMockService(t)
 		request = httptest.NewRequest(http.MethodGet, "/ping", nil)
 		response = httptest.NewRecorder()
 
@@ -31,7 +29,7 @@ func TestHealthcheckHandler(t *testing.T) {
 		"Тест создания хэндлера", func(t *testing.T) {
 			t.Run(
 				"Должен создать экземпляр без ошибок", func(t *testing.T) {
-					h, err := New(&ServiceMock{})
+					h, err := New(NewMockService(t))
 
 					require.NoError(t, err)
 					assert.NotNil(t, h)
@@ -54,7 +52,7 @@ func TestHealthcheckHandler(t *testing.T) {
 				"Должен выполниться без ошибок", func(t *testing.T) {
 					setup(t)
 
-					mockService.PingDBMock.Expect().Return(nil)
+					mockService.EXPECT().PingDB().Return(nil)
 
 					handler.PingDB(response, request)
 
@@ -67,7 +65,7 @@ func TestHealthcheckHandler(t *testing.T) {
 					setup(t)
 
 					expectedErr := assert.AnError
-					mockService.PingDBMock.Expect().Return(expectedErr)
+					mockService.EXPECT().PingDB().Return(expectedErr)
 
 					handler.PingDB(response, request)
 

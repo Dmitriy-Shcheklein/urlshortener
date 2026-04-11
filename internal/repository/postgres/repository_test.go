@@ -3,30 +3,27 @@ package postgres
 import (
 	"testing"
 
-	"github.com/gojuno/minimock/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHealthcheckRepository(t *testing.T) {
 	var (
-		mockPool   *PoolMock
+		mockPool   *MockPool
 		repository *Repository
 	)
 
 	setup := func(t *testing.T) {
-		ctrl := minimock.NewController(t)
-		mockPool = NewPoolMock(ctrl)
+		mockPool = NewMockPool(t)
 
 		repository = &Repository{pool: mockPool}
 	}
 
 	t.Run(
 		"Тест создания репозитория", func(t *testing.T) {
-
 			t.Run(
 				"Должен создать экземпляр без ошибок", func(t *testing.T) {
-					mockPool = &PoolMock{}
+					mockPool = &MockPool{}
 					repo, err := New(mockPool)
 
 					require.NoError(t, err)
@@ -51,7 +48,7 @@ func TestHealthcheckRepository(t *testing.T) {
 				"Должен выполниться без ошибок", func(t *testing.T) {
 					setup(t)
 
-					mockPool.PingMock.Expect().Return(nil)
+					mockPool.EXPECT().Ping().Return(nil)
 
 					err := repository.Ping()
 
@@ -64,7 +61,7 @@ func TestHealthcheckRepository(t *testing.T) {
 					setup(t)
 
 					expectedErr := assert.AnError
-					mockPool.PingMock.Expect().Return(expectedErr)
+					mockPool.EXPECT().Ping().Return(expectedErr)
 
 					err := repository.Ping()
 
