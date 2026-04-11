@@ -156,23 +156,41 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 		http.Error(writer, "Invalid content-type", http.StatusBadRequest)
 		return
 	}
-	var body []CreateManyBodyRaw
-	validate := validator.New()
 
-	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
-		http.Error(writer, "Error while decode body", http.StatusBadRequest)
+	body, err := io.ReadAll(request.Body)
+	if err != nil {
+		http.Error(writer, "Failed to read body", http.StatusBadRequest)
 		return
 	}
+	defer func() {
+		if err = request.Body.Close(); err != nil {
+			logger.Logger.Error().Err(err).Msg("error while close body")
+		}
+	}()
+
+	var deserialized []CreateManyBodyRaw
+	validate := validator.New()
+
+	err = json.Unmarshal(body, &deserialized)
+	if err != nil {
+		http.Error(writer, "Invalid JSON format", http.StatusBadRequest)
+		return
+	}
+
+	//if err := json.NewDecoder(request.Body).Decode(&deserialized); err != nil {
+	//	http.Error(writer, "Error while decode body", http.StatusBadRequest)
+	//	return
+	//}
 	if len(body) == 0 {
 		http.Error(writer, "empty body values", http.StatusBadRequest)
 		return
 	}
-	if err := validate.Struct(body); err != nil {
+	if err = validate.Struct(deserialized); err != nil {
 		http.Error(writer, "Error while validate body", http.StatusBadRequest)
 		return
 	}
 
-	shorts, err := h.service.CreateMany(body)
+	shorts, err := h.service.CreateMany(deserialized)
 	if err != nil {
 		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
 		return
