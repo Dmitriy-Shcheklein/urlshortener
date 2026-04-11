@@ -76,7 +76,7 @@ func (r *Repository) SaveMany(values []model.LinkRow) error {
 		return nil
 	}
 
-	query := "INSERT INTO urls (short_url, original_url) VALUES "
+	query := "INSERT INTO links (short_url, original_url) VALUES "
 	args := make([]interface{}, 0, len(values)*2)
 
 	for i, item := range values {

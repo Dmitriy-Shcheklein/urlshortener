@@ -3,6 +3,7 @@ package shortener
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -167,6 +168,7 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 			logger.Logger.Error().Err(err).Msg("error while close body")
 		}
 	}()
+	fmt.Printf("BODY: %s", string(body))
 
 	var deserialized []CreateManyBodyRaw
 	validate := validator.New()
@@ -177,21 +179,21 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 		return
 	}
 
-	//if err := json.NewDecoder(request.Body).Decode(&deserialized); err != nil {
-	//	http.Error(writer, "Error while decode body", http.StatusBadRequest)
-	//	return
-	//}
 	if len(body) == 0 {
 		http.Error(writer, "empty body values", http.StatusBadRequest)
 		return
 	}
-	if err = validate.Struct(deserialized); err != nil {
-		http.Error(writer, "Error while validate body", http.StatusBadRequest)
-		return
+	for i := range deserialized {
+		if err = validate.Struct(deserialized[i]); err != nil {
+			logger.Logger.Error().Err(err).Msg("error while validate body\n")
+			http.Error(writer, "Error while validate body", http.StatusBadRequest)
+			return
+		}
 	}
 
 	shorts, err := h.service.CreateMany(deserialized)
 	if err != nil {
+		logger.Logger.Error().Err(err).Msg("error while create short url\n")
 		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
 		return
 	}
