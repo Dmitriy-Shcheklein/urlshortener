@@ -163,6 +163,10 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 		http.Error(writer, "Error while decode body", http.StatusBadRequest)
 		return
 	}
+	if len(body) == 0 {
+		http.Error(writer, "empty body values", http.StatusBadRequest)
+		return
+	}
 	if err := validate.Struct(body); err != nil {
 		http.Error(writer, "Error while validate body", http.StatusBadRequest)
 		return
