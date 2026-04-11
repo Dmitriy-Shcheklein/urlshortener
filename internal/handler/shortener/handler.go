@@ -3,7 +3,6 @@ package shortener
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -168,7 +167,6 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 			logger.Logger.Error().Err(err).Msg("error while close body")
 		}
 	}()
-	fmt.Printf("BODY: %s", string(body))
 
 	var deserialized []CreateManyBodyRaw
 	validate := validator.New()

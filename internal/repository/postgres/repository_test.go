@@ -3,18 +3,23 @@ package postgres
 import (
 	"testing"
 
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHealthcheckRepository(t *testing.T) {
 	var (
 		mockPool   *MockPool
+		mockPgxRow *MockPgxRow
 		repository *Repository
 	)
 
 	setup := func(t *testing.T) {
 		mockPool = NewMockPool(t)
+		mockPgxRow = NewMockPgxRow(t)
 
 		repository = &Repository{pool: mockPool}
 	}
@@ -66,6 +71,118 @@ func TestHealthcheckRepository(t *testing.T) {
 					err := repository.Ping()
 
 					assert.Equal(t, expectedErr, err)
+				},
+			)
+		},
+	)
+
+	t.Run(
+		"Тест метода SaveMany", func(t *testing.T) {
+			incoming := []model.LinkRow{
+				{ShortURL: "firstShort", OriginalURL: "firstOriginal"},
+				{ShortURL: "secondShort", OriginalURL: "secondOriginal"},
+			}
+			t.Run(
+				"Должен выполниться без ошибок", func(t *testing.T) {
+					setup(t)
+
+					mockPool.EXPECT().Exec(
+						mock.Anything, "INSERT INTO links (short_url, original_url) VALUES ($1, $2), ($3, $4)",
+						[]any{"firstShort", "firstOriginal", "secondShort", "secondOriginal"},
+					).Return(pgconn.CommandTag{}, nil)
+
+					assert.NoError(t, repository.SaveMany(incoming))
+				},
+			)
+
+			t.Run(
+				"Ошибка при выполнении запроса", func(t *testing.T) {
+					setup(t)
+
+					testError := assert.AnError
+					mockPool.EXPECT().Exec(
+						mock.Anything, "INSERT INTO links (short_url, original_url) VALUES ($1, $2), ($3, $4)",
+						[]any{"firstShort", "firstOriginal", "secondShort", "secondOriginal"},
+					).Return(pgconn.CommandTag{}, testError)
+
+					require.Error(t, repository.SaveMany(incoming))
+				},
+			)
+		},
+	)
+
+	t.Run(
+		"Тест метода Save", func(t *testing.T) {
+			originalUrl := []byte("original")
+			shortUrl := []byte("short")
+			t.Run(
+				"Должен выполниться без ошибок", func(t *testing.T) {
+					setup(t)
+
+					mockPool.EXPECT().Exec(
+						mock.Anything, "INSERT INTO links (short_url, original_url) VALUES ($1, $2)",
+						[]interface{}{string(shortUrl), string(originalUrl)},
+					).Return(pgconn.CommandTag{}, nil)
+
+					assert.NoError(t, repository.Save(originalUrl, shortUrl))
+				},
+			)
+
+			t.Run(
+				"Ошибка при выполнении запроса", func(t *testing.T) {
+					setup(t)
+
+					testError := assert.AnError
+					mockPool.EXPECT().Exec(
+						mock.Anything, "INSERT INTO links (short_url, original_url) VALUES ($1, $2)",
+						[]interface{}{string(shortUrl), string(originalUrl)},
+					).Return(pgconn.CommandTag{}, testError)
+
+					require.Error(t, repository.Save(originalUrl, shortUrl))
+				},
+			)
+		},
+	)
+
+	t.Run(
+		"Тест метода GetByID", func(t *testing.T) {
+			ID := "ID"
+			t.Run(
+				"Должен выполниться без ошибок", func(t *testing.T) {
+					setup(t)
+
+					mockPool.EXPECT().QueryRow(
+						mock.Anything, "SELECT original_url from links WHERE short_url = $1",
+						[]interface{}{ID},
+					).Return(mockPgxRow)
+					mockPgxRow.EXPECT().Scan(mock.Anything).Run(
+						func(args ...any) {
+							*args[0].(*string) = "result"
+						},
+					).Return(nil)
+
+					res, err := repository.GetByID(ID)
+
+					require.NoError(t, err)
+					assert.Equal(t, []byte("result"), res)
+				},
+			)
+
+			t.Run(
+				"Ошибка при выполнении запроса", func(t *testing.T) {
+					setup(t)
+
+					testError := assert.AnError
+					mockPool.EXPECT().QueryRow(
+						mock.Anything, "SELECT original_url from links WHERE short_url = $1",
+						[]interface{}{ID},
+					).Return(mockPgxRow)
+					mockPgxRow.EXPECT().Scan(mock.Anything).Return(testError)
+
+					_, err := repository.GetByID(ID)
+
+					require.Error(t, err)
+					assert.Equal(t, testError, err)
 				},
 			)
 		},

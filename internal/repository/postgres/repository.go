@@ -11,10 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-//go:generate minimock -i Pool -o repository_mock_test.go
+type PgxRow = pgx.Row
+
 type Pool interface {
 	Ping() error
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	QueryRow(ctx context.Context, sql string, args ...any) PgxRow
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
@@ -77,7 +78,7 @@ func (r *Repository) SaveMany(values []model.LinkRow) error {
 	}
 
 	query := "INSERT INTO links (short_url, original_url) VALUES "
-	args := make([]interface{}, 0, len(values)*2)
+	args := make([]any, 0, len(values)*2)
 
 	for i, item := range values {
 		if i > 0 {

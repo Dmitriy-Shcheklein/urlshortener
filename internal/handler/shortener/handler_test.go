@@ -62,8 +62,8 @@ func TestGetById(t *testing.T) {
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
 		config = NewMockConfig(t)
-
 		handler, _ = New(service, config)
+		logger.Logger = new(zerolog.Nop())
 	}
 
 	t.Run(
@@ -71,6 +71,8 @@ func TestGetById(t *testing.T) {
 			setup(t)
 
 			service.EXPECT().GetByID(path).Return(fullLink, nil)
+
+			handler.GetByID(writer, request)
 
 			assert.NotPanics(
 				t, func() {
@@ -356,6 +358,132 @@ func TestCreateFromJSONBody(t *testing.T) {
 
 			assert.Equal(t, http.StatusBadRequest, writer.Code)
 			assert.Equal(t, "Error while decode body\n", writer.Body.String())
+		},
+	)
+}
+
+func TestCreateMany(t *testing.T) {
+	var (
+		handler     *Handler
+		service     *MockService
+		config      *MockConfig
+		writer      *httptest.ResponseRecorder
+		request     *http.Request
+		svcIncoming []CreateManyBodyRaw
+		svcResult   []CreateManyResponseRaw
+		path        string
+		body        io.Reader
+		baseAddress []byte
+	)
+
+	setup := func(t *testing.T) {
+		path = "/"
+		svcIncoming = []CreateManyBodyRaw{{OriginalUrl: "https://practicum.yandex.ru", CorrelationID: "id"}}
+		svcResult = []CreateManyResponseRaw{{CorrelationId: "id", ShortURL: "url"}}
+		body = strings.NewReader("[{\"original_url\": \"https://practicum.yandex.ru\", \"correlation_id\": \"id\"}]")
+		request = httptest.NewRequest(http.MethodPost, path, body)
+		request.Header.Set("Content-Type", "application/json")
+		writer = httptest.NewRecorder()
+		service = NewMockService(t)
+		config = NewMockConfig(t)
+
+		handler, _ = New(service, config)
+		logger.Logger = new(zerolog.Nop())
+	}
+
+	t.Run(
+		"Должен выполниться без ошибок", func(t *testing.T) {
+			setup(t)
+
+			service.EXPECT().CreateMany(svcIncoming).Return(svcResult, nil)
+			config.EXPECT().GetBaseAddress().Return(baseAddress)
+
+			assert.NotPanics(
+				t, func() {
+					handler.CreateMany(writer, request)
+				},
+			)
+		},
+	)
+
+	t.Run(
+		"Должен установить заголовки и тело ответа", func(t *testing.T) {
+			tests := []struct {
+				baseAddress []byte
+				body        string
+			}{
+				{
+					baseAddress: []byte{},
+					body:        "[{\"correlation_id\":\"id\",\"short_url\":\"http://example.com/url\"}]",
+				},
+				{
+					baseAddress: []byte("https://ya.ru"),
+					body:        "[{\"correlation_id\":\"id\",\"short_url\":\"https://ya.ru/url\"}]",
+				},
+			}
+
+			for _, test := range tests {
+				setup(t)
+
+				service.EXPECT().CreateMany(svcIncoming).Return(svcResult, nil)
+				config.EXPECT().GetBaseAddress().Return(test.baseAddress)
+
+				handler.CreateMany(writer, request)
+
+				assert.Equal(t, "application/json", writer.Header().Get("Content-Type"))
+				assert.Equal(t, http.StatusCreated, writer.Code)
+				assert.Equal(t, test.body, writer.Body.String())
+			}
+		},
+	)
+	t.Run(
+		"Ошибка, некорректный content-type", func(t *testing.T) {
+			setup(t)
+			request.Header.Set("Content-Type", "text/plain")
+
+			handler.CreateMany(writer, request)
+
+			assert.Equal(t, http.StatusBadRequest, writer.Code)
+			assert.Equal(t, "Invalid content-type\n", writer.Body.String())
+		},
+	)
+
+	t.Run(
+		"Ошибка, пустое тело запрос", func(t *testing.T) {
+			setup(t)
+			request = httptest.NewRequest(http.MethodGet, path, nil)
+			request.Header.Set("Content-Type", "application/json")
+
+			handler.CreateMany(writer, request)
+
+			assert.Equal(t, http.StatusBadRequest, writer.Code)
+			assert.Equal(t, "Invalid JSON format\n", writer.Body.String())
+		},
+	)
+
+	t.Run(
+		"Ошибка создания короткой ссылки", func(t *testing.T) {
+			setup(t)
+
+			service.EXPECT().CreateMany(svcIncoming).Return(nil, assert.AnError)
+
+			handler.CreateMany(writer, request)
+
+			assert.Equal(t, http.StatusInternalServerError, writer.Code)
+			assert.Equal(t, "Error while create short url\n", writer.Body.String())
+		},
+	)
+
+	t.Run(
+		"Ошибка при чтении тела запроса", func(t *testing.T) {
+			setup(t)
+			request = httptest.NewRequest(http.MethodGet, path, &errorReader{err: errors.New("read error")})
+			request.Header.Set("Content-Type", "application/json")
+
+			handler.CreateMany(writer, request)
+
+			assert.Equal(t, http.StatusBadRequest, writer.Code)
+			assert.Equal(t, "Failed to read body\n", writer.Body.String())
 		},
 	)
 }
