@@ -67,7 +67,7 @@ func (r *Repository) Save(originalUrl []byte, shortUrl []byte) error {
 	if err != nil {
 		return fmt.Errorf("insert failed: %w", err)
 	}
-	if res.RowsAffected() != 0 {
+	if res.RowsAffected() == 0 {
 		return NewConflictError(originalUrl, shortUrl)
 	}
 	return nil

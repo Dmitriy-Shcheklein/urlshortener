@@ -126,7 +126,7 @@ func TestHealthcheckRepository(t *testing.T) {
 					mockPool.EXPECT().Exec(
 						mock.Anything, expectedQueryRaw,
 						[]interface{}{string(shortUrl), string(originalUrl)},
-					).Return(pgconn.CommandTag{}, nil)
+					).Return(pgconn.NewCommandTag("1"), nil)
 
 					assert.NoError(t, repository.Save(originalUrl, shortUrl))
 				},
@@ -140,7 +140,7 @@ func TestHealthcheckRepository(t *testing.T) {
 					mockPool.EXPECT().Exec(
 						mock.Anything, expectedQueryRaw,
 						[]interface{}{string(shortUrl), string(originalUrl)},
-					).Return(pgconn.CommandTag{}, testError)
+					).Return(pgconn.NewCommandTag("1"), testError)
 
 					require.Error(t, repository.Save(originalUrl, shortUrl))
 				},
@@ -154,7 +154,7 @@ func TestHealthcheckRepository(t *testing.T) {
 					mockPool.EXPECT().Exec(
 						mock.Anything, expectedQueryRaw,
 						[]interface{}{string(shortUrl), string(originalUrl)},
-					).Return(pgconn.NewCommandTag("1"), nil)
+					).Return(pgconn.NewCommandTag(""), nil)
 
 					err := repository.Save(originalUrl, shortUrl)
 
