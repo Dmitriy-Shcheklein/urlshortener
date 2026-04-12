@@ -83,7 +83,7 @@ func TestHealthcheckRepository(t *testing.T) {
 				{ShortURL: "firstShort", OriginalURL: "firstOriginal"},
 				{ShortURL: "secondShort", OriginalURL: "secondOriginal"},
 			}
-			expectedQueryRaw := "INSERT INTO links (short_url, original_url) VALUES ($1, $2), ($3, $4) ON CONFLICT (original_url) DO NOTHING"
+			expectedQueryRaw := "INSERT INTO links (short_url, original_url) VALUES ($1, $2), ($3, $4)"
 			t.Run(
 				"Должен выполниться без ошибок", func(t *testing.T) {
 					setup(t)

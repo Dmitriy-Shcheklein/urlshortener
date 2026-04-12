@@ -91,7 +91,6 @@ func (r *Repository) SaveMany(values []model.LinkRow) error {
 		query += fmt.Sprintf("($%d, $%d)", i*2+1, i*2+2)
 		args = append(args, item.ShortURL, item.OriginalURL)
 	}
-	query += " ON CONFLICT (original_url) DO NOTHING"
 
 	_, err := r.pool.Exec(
 		ctx, query, args...,
