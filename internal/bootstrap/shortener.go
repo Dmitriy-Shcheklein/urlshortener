@@ -12,7 +12,7 @@ import (
 
 func InitShortener(cfg *config.Config, pool *pool.Pool, router *chi.Mux) error {
 	var repository shService.LinkRepository
-	if cfg.DbDSN.IsValid {
+	if pool != nil {
 		postgresRepo, err := postgres.New(pool)
 		if err != nil {
 			return err

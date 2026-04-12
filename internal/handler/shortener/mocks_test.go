@@ -5,6 +5,7 @@
 package shortener
 
 import (
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -36,26 +37,26 @@ func (_m *MockService) EXPECT() *MockService_Expecter {
 }
 
 // CreateMany provides a mock function for the type MockService
-func (_mock *MockService) CreateMany(values []CreateManyBodyRaw) ([]CreateManyResponseRaw, error) {
+func (_mock *MockService) CreateMany(values []model.CreateManyBodyRaw) ([]model.CreateManyResponseRaw, error) {
 	ret := _mock.Called(values)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateMany")
 	}
 
-	var r0 []CreateManyResponseRaw
+	var r0 []model.CreateManyResponseRaw
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func([]CreateManyBodyRaw) ([]CreateManyResponseRaw, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func([]model.CreateManyBodyRaw) ([]model.CreateManyResponseRaw, error)); ok {
 		return returnFunc(values)
 	}
-	if returnFunc, ok := ret.Get(0).(func([]CreateManyBodyRaw) []CreateManyResponseRaw); ok {
+	if returnFunc, ok := ret.Get(0).(func([]model.CreateManyBodyRaw) []model.CreateManyResponseRaw); ok {
 		r0 = returnFunc(values)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]CreateManyResponseRaw)
+			r0 = ret.Get(0).([]model.CreateManyResponseRaw)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func([]CreateManyBodyRaw) error); ok {
+	if returnFunc, ok := ret.Get(1).(func([]model.CreateManyBodyRaw) error); ok {
 		r1 = returnFunc(values)
 	} else {
 		r1 = ret.Error(1)
@@ -69,16 +70,16 @@ type MockService_CreateMany_Call struct {
 }
 
 // CreateMany is a helper method to define mock.On call
-//   - values []CreateManyBodyRaw
+//   - values []model.CreateManyBodyRaw
 func (_e *MockService_Expecter) CreateMany(values interface{}) *MockService_CreateMany_Call {
 	return &MockService_CreateMany_Call{Call: _e.mock.On("CreateMany", values)}
 }
 
-func (_c *MockService_CreateMany_Call) Run(run func(values []CreateManyBodyRaw)) *MockService_CreateMany_Call {
+func (_c *MockService_CreateMany_Call) Run(run func(values []model.CreateManyBodyRaw)) *MockService_CreateMany_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 []CreateManyBodyRaw
+		var arg0 []model.CreateManyBodyRaw
 		if args[0] != nil {
-			arg0 = args[0].([]CreateManyBodyRaw)
+			arg0 = args[0].([]model.CreateManyBodyRaw)
 		}
 		run(
 			arg0,
@@ -87,12 +88,12 @@ func (_c *MockService_CreateMany_Call) Run(run func(values []CreateManyBodyRaw))
 	return _c
 }
 
-func (_c *MockService_CreateMany_Call) Return(createManyResponseRaws []CreateManyResponseRaw, err error) *MockService_CreateMany_Call {
+func (_c *MockService_CreateMany_Call) Return(createManyResponseRaws []model.CreateManyResponseRaw, err error) *MockService_CreateMany_Call {
 	_c.Call.Return(createManyResponseRaws, err)
 	return _c
 }
 
-func (_c *MockService_CreateMany_Call) RunAndReturn(run func(values []CreateManyBodyRaw) ([]CreateManyResponseRaw, error)) *MockService_CreateMany_Call {
+func (_c *MockService_CreateMany_Call) RunAndReturn(run func(values []model.CreateManyBodyRaw) ([]model.CreateManyResponseRaw, error)) *MockService_CreateMany_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/postgres"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -410,8 +411,8 @@ func TestCreateMany(t *testing.T) {
 		config      *MockConfig
 		writer      *httptest.ResponseRecorder
 		request     *http.Request
-		svcIncoming []CreateManyBodyRaw
-		svcResult   []CreateManyResponseRaw
+		svcIncoming []model.CreateManyBodyRaw
+		svcResult   []model.CreateManyResponseRaw
 		path        string
 		body        io.Reader
 		baseAddress []byte
@@ -419,8 +420,8 @@ func TestCreateMany(t *testing.T) {
 
 	setup := func(t *testing.T) {
 		path = "/"
-		svcIncoming = []CreateManyBodyRaw{{OriginalUrl: "https://practicum.yandex.ru", CorrelationID: "id"}}
-		svcResult = []CreateManyResponseRaw{{CorrelationId: "id", ShortURL: "url"}}
+		svcIncoming = []model.CreateManyBodyRaw{{OriginalUrl: "https://practicum.yandex.ru", CorrelationID: "id"}}
+		svcResult = []model.CreateManyResponseRaw{{CorrelationId: "id", ShortURL: "url"}}
 		body = strings.NewReader("[{\"original_url\": \"https://practicum.yandex.ru\", \"correlation_id\": \"id\"}]")
 		request = httptest.NewRequest(http.MethodPost, path, body)
 		request.Header.Set("Content-Type", "application/json")

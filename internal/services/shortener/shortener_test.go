@@ -3,7 +3,6 @@ package shortener
 import (
 	"testing"
 
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/handler/shortener"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -102,7 +101,7 @@ func TestService(t *testing.T) {
 
 	t.Run(
 		"Тест CreateMany", func(t *testing.T) {
-			values := []shortener.CreateManyBodyRaw{
+			values := []model.CreateManyBodyRaw{
 				{CorrelationID: "firstID", OriginalUrl: "firstURL"},
 				{CorrelationID: "SecondID", OriginalUrl: "secondURL"},
 			}

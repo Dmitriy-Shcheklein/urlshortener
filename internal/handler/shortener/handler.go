@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/postgres"
 	"github.com/go-playground/validator/v10"
 )
@@ -15,7 +16,7 @@ import (
 type Service interface {
 	GetByID(ID string) ([]byte, error)
 	CreateShort(originalURL []byte) ([]byte, error)
-	CreateMany(values []CreateManyBodyRaw) ([]CreateManyResponseRaw, error)
+	CreateMany(values []model.CreateManyBodyRaw) ([]model.CreateManyResponseRaw, error)
 }
 
 type Config interface {
@@ -32,14 +33,6 @@ type CreateShortBody struct {
 }
 type CreateShortResponse struct {
 	Result string `json:"result"`
-}
-type CreateManyBodyRaw struct {
-	CorrelationID string `json:"correlation_id" validate:"required"`
-	OriginalUrl   string `json:"original_url" validate:"required"`
-}
-type CreateManyResponseRaw struct {
-	CorrelationId string `json:"correlation_id" validate:"required"`
-	ShortURL      string `json:"short_url" validate:"required"`
 }
 
 func New(service Service, config Config) (*Handler, error) {
@@ -157,7 +150,7 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 		}
 	}()
 
-	var deserialized []CreateManyBodyRaw
+	var deserialized []model.CreateManyBodyRaw
 	validate := validator.New()
 
 	err = json.Unmarshal(body, &deserialized)

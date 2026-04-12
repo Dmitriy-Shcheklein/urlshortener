@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"hash/crc32"
 
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/handler/shortener"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 )
 
@@ -41,10 +40,10 @@ func (s *Service) CreateShort(originalURL []byte) ([]byte, error) {
 	return short, nil
 }
 
-func (s *Service) CreateMany(values []shortener.CreateManyBodyRaw) (
-	[]shortener.CreateManyResponseRaw, error,
+func (s *Service) CreateMany(values []model.CreateManyBodyRaw) (
+	[]model.CreateManyResponseRaw, error,
 ) {
-	shorts := make([]shortener.CreateManyResponseRaw, len(values))
+	shorts := make([]model.CreateManyResponseRaw, len(values))
 	for i := range values {
 		shortValue := shortenURLCRC32([]byte(values[i].OriginalUrl))
 		shorts[i].ShortURL = string(shortValue)

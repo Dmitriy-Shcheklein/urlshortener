@@ -36,12 +36,18 @@ func main() {
 	router.Use(middleware.Timeout(time.Minute))
 	router.Use(middlewares.WithGzip)
 
-	dbPool, err := pool.NewPool(cfg.DbDSN.Value)
-	if err != nil && cfg.DbDSN.IsValid {
-		log.Fatalf("error while creating pool: %s", err)
-	}
+	var dbPool *pool.Pool
 
 	if cfg.DbDSN.IsValid {
+		dbPool, err = pool.NewPool(cfg.DbDSN.Value)
+		if err != nil && cfg.DbDSN.IsValid {
+			log.Fatalf("error while creating pool: %s", err)
+		}
+		defer func() {
+			if dbPool != nil {
+				dbPool.Stop()
+			}
+		}()
 		if err = bootstrap.RunMigration(cfg.DbDSN.Value); err != nil {
 			log.Fatalf("error while execute migrations: %s", err)
 		}
@@ -80,8 +86,6 @@ func main() {
 
 	if err = server.Shutdown(ctx); err != nil {
 		log.Printf("Server forced to shutdown: %v", err)
-		dbPool.Stop()
-		log.Printf("Database stopped: %v", err)
 		if err = server.Close(); err != nil {
 			log.Printf("Server close error: %v", err)
 		}
