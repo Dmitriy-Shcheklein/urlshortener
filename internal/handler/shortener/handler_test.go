@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/postgres"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 )
@@ -191,6 +192,23 @@ func TestCreateShort(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run(
+		"Должен установить заголовки и тело ответа - конфликт", func(t *testing.T) {
+			setup(t)
+
+			service.EXPECT().CreateShort([]byte(fullLink)).Return(
+				shortLink, postgres.NewConflictError([]byte(fullLink), shortLink),
+			)
+
+			handler.CreateShort(writer, request)
+
+			assert.Equal(t, "text/plain", writer.Header().Get("Content-Type"))
+			assert.Equal(t, http.StatusConflict, writer.Code)
+			assert.Equal(t, string(shortLink), writer.Body.String())
+		},
+	)
+
 	t.Run(
 		"Ошибка, некорректный content-type", func(t *testing.T) {
 			setup(t)
@@ -310,6 +328,26 @@ func TestCreateFromJSONBody(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run(
+		"Должен установить заголовки и тело ответа - конфликт", func(t *testing.T) {
+			setup(t)
+			originalUrl := []byte(fullLink)
+			expectedBody := "{\"result\":\"https://ya.ru/short\"}"
+
+			service.EXPECT().CreateShort(originalUrl).Return(
+				shortLink, postgres.NewConflictError(originalUrl, shortLink),
+			)
+			config.EXPECT().GetBaseAddress().Return([]byte("https://ya.ru"))
+
+			handler.CreateFromJSONBody(writer, request)
+
+			assert.Equal(t, "application/json", writer.Header().Get("Content-Type"))
+			assert.Equal(t, http.StatusConflict, writer.Code)
+			assert.Equal(t, expectedBody, writer.Body.String())
+		},
+	)
+
 	t.Run(
 		"Ошибка, некорректный content-type", func(t *testing.T) {
 			setup(t)

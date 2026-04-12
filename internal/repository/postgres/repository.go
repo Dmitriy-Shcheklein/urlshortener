@@ -57,14 +57,18 @@ func (r *Repository) Save(originalUrl []byte, shortUrl []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	query := fmt.Sprintf("INSERT INTO %s (short_url, original_url) VALUES ($1, $2)", "links")
-	fmt.Println("Query: ", query)
+	query := fmt.Sprintf(
+		"INSERT INTO %s (short_url, original_url) VALUES ($1, $2) ON CONFLICT (original_url) DO NOTHING", "links",
+	)
 
-	_, err := r.pool.Exec(
+	res, err := r.pool.Exec(
 		ctx, query, string(shortUrl), string(originalUrl),
 	)
 	if err != nil {
 		return fmt.Errorf("insert failed: %w", err)
+	}
+	if res.RowsAffected() != 0 {
+		return NewConflictError(originalUrl, shortUrl)
 	}
 	return nil
 }
@@ -87,6 +91,7 @@ func (r *Repository) SaveMany(values []model.LinkRow) error {
 		query += fmt.Sprintf("($%d, $%d)", i*2+1, i*2+2)
 		args = append(args, item.ShortURL, item.OriginalURL)
 	}
+	query += " ON CONFLICT (original_url) DO NOTHING"
 
 	_, err := r.pool.Exec(
 		ctx, query, args...,

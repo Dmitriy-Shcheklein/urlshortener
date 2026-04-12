@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
@@ -82,12 +83,14 @@ func TestHealthcheckRepository(t *testing.T) {
 				{ShortURL: "firstShort", OriginalURL: "firstOriginal"},
 				{ShortURL: "secondShort", OriginalURL: "secondOriginal"},
 			}
+			expectedQueryRaw := "INSERT INTO links (short_url, original_url) VALUES ($1, $2), ($3, $4) ON CONFLICT (original_url) DO NOTHING"
 			t.Run(
 				"Должен выполниться без ошибок", func(t *testing.T) {
 					setup(t)
 
 					mockPool.EXPECT().Exec(
-						mock.Anything, "INSERT INTO links (short_url, original_url) VALUES ($1, $2), ($3, $4)",
+						mock.Anything,
+						expectedQueryRaw,
 						[]any{"firstShort", "firstOriginal", "secondShort", "secondOriginal"},
 					).Return(pgconn.CommandTag{}, nil)
 
@@ -101,7 +104,7 @@ func TestHealthcheckRepository(t *testing.T) {
 
 					testError := assert.AnError
 					mockPool.EXPECT().Exec(
-						mock.Anything, "INSERT INTO links (short_url, original_url) VALUES ($1, $2), ($3, $4)",
+						mock.Anything, expectedQueryRaw,
 						[]any{"firstShort", "firstOriginal", "secondShort", "secondOriginal"},
 					).Return(pgconn.CommandTag{}, testError)
 
@@ -115,12 +118,13 @@ func TestHealthcheckRepository(t *testing.T) {
 		"Тест метода Save", func(t *testing.T) {
 			originalUrl := []byte("original")
 			shortUrl := []byte("short")
+			expectedQueryRaw := "INSERT INTO links (short_url, original_url) VALUES ($1, $2) ON CONFLICT (original_url) DO NOTHING"
 			t.Run(
 				"Должен выполниться без ошибок", func(t *testing.T) {
 					setup(t)
 
 					mockPool.EXPECT().Exec(
-						mock.Anything, "INSERT INTO links (short_url, original_url) VALUES ($1, $2)",
+						mock.Anything, expectedQueryRaw,
 						[]interface{}{string(shortUrl), string(originalUrl)},
 					).Return(pgconn.CommandTag{}, nil)
 
@@ -134,11 +138,28 @@ func TestHealthcheckRepository(t *testing.T) {
 
 					testError := assert.AnError
 					mockPool.EXPECT().Exec(
-						mock.Anything, "INSERT INTO links (short_url, original_url) VALUES ($1, $2)",
+						mock.Anything, expectedQueryRaw,
 						[]interface{}{string(shortUrl), string(originalUrl)},
 					).Return(pgconn.CommandTag{}, testError)
 
 					require.Error(t, repository.Save(originalUrl, shortUrl))
+				},
+			)
+
+			t.Run(
+				"Ошибка конфликт по original_url", func(t *testing.T) {
+					setup(t)
+					var targetError *ConflictError
+
+					mockPool.EXPECT().Exec(
+						mock.Anything, expectedQueryRaw,
+						[]interface{}{string(shortUrl), string(originalUrl)},
+					).Return(pgconn.NewCommandTag("1"), nil)
+
+					err := repository.Save(originalUrl, shortUrl)
+
+					require.Error(t, err)
+					assert.True(t, errors.As(err, &targetError))
 				},
 			)
 		},

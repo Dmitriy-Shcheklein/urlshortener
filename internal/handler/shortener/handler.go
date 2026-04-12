@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/postgres"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -91,20 +92,21 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 	short, err := h.service.CreateShort(body)
+	headers := map[string]string{"Content-Type": "text/plain"}
+	if conflictError, ok := errors.AsType[*postgres.ConflictError](err); ok {
+		prepareResponse(
+			writer, headers, http.StatusConflict, conflictError.Shorten,
+		)
+		return
+	}
+
 	if err != nil {
 		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
 		return
 	}
 	result := h.prepareRequest(request.Host, short)
 
-	writer.Header().Add("Content-Type", "text/plain")
-	writer.WriteHeader(http.StatusCreated)
-	// #nosec G705
-	_, err = writer.Write(result)
-	if err != nil {
-		http.Error(writer, "Error while write body", http.StatusInternalServerError)
-		return
-	}
+	prepareResponse(writer, headers, http.StatusCreated, result)
 }
 
 func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.Request) {
@@ -127,28 +129,16 @@ func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.R
 	}
 
 	short, err := h.service.CreateShort([]byte(body.URL))
+	headers := map[string]string{"Content-Type": "application/json"}
+	if conflictError, ok := errors.AsType[*postgres.ConflictError](err); ok {
+		h.prepareJSONResponse(writer, request.Host, conflictError.Shorten, http.StatusConflict, headers)
+		return
+	}
 	if err != nil {
 		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
 		return
 	}
-	result := h.prepareRequest(request.Host, short)
-	response := &CreateShortResponse{
-		Result: string(result),
-	}
-
-	resp, err := json.Marshal(response)
-	if err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	writer.Header().Add("Content-Type", "application/json")
-	writer.WriteHeader(http.StatusCreated)
-	_, err = writer.Write(resp)
-	if err != nil {
-		http.Error(writer, "Error while write body", http.StatusInternalServerError)
-		return
-	}
+	h.prepareJSONResponse(writer, request.Host, short, http.StatusCreated, headers)
 }
 
 func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) {
@@ -207,13 +197,8 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 		return
 	}
 
-	writer.Header().Add("Content-Type", "application/json")
-	writer.WriteHeader(http.StatusCreated)
-	_, err = writer.Write(resp)
-	if err != nil {
-		http.Error(writer, "Error while write body", http.StatusInternalServerError)
-		return
-	}
+	headers := map[string]string{"Content-Type": "application/json"}
+	prepareResponse(writer, headers, http.StatusCreated, resp)
 }
 
 func (h *Handler) prepareRequest(host string, short []byte) []byte {
@@ -229,4 +214,33 @@ func (h *Handler) prepareRequest(host string, short []byte) []byte {
 	}
 
 	return result
+}
+
+func (h *Handler) prepareJSONResponse(
+	w http.ResponseWriter, host string, res []byte, status int, headers map[string]string,
+) {
+	result := h.prepareRequest(host, res)
+	response := &CreateShortResponse{
+		Result: string(result),
+	}
+
+	resp, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	prepareResponse(w, headers, status, resp)
+}
+
+func prepareResponse(w http.ResponseWriter, headers map[string]string, statusCode int, body []byte) {
+	for key, value := range headers {
+		w.Header().Add(key, value)
+	}
+	w.WriteHeader(statusCode)
+	// #nosec G705
+	_, err := w.Write(body)
+	if err != nil {
+		http.Error(w, "Error while write body", http.StatusInternalServerError)
+		return
+	}
 }
