@@ -197,15 +197,18 @@ func TestCreateShort(t *testing.T) {
 		"Должен установить заголовки и тело ответа - конфликт", func(t *testing.T) {
 			setup(t)
 
+			shLink := []byte("short")
+
 			service.EXPECT().CreateShort([]byte(fullLink)).Return(
-				shortLink, postgres.NewConflictError([]byte(fullLink), shortLink),
+				shLink, postgres.NewConflictError([]byte(fullLink), shLink),
 			)
+			config.EXPECT().GetBaseAddress().Return([]byte{})
 
 			handler.CreateShort(writer, request)
 
 			assert.Equal(t, "text/plain", writer.Header().Get("Content-Type"))
 			assert.Equal(t, http.StatusConflict, writer.Code)
-			assert.Equal(t, string(shortLink), writer.Body.String())
+			assert.Equal(t, "http://example.com/short", writer.Body.String())
 		},
 	)
 

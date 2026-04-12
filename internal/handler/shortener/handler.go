@@ -95,7 +95,7 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 	headers := map[string]string{"Content-Type": "text/plain"}
 	if conflictError, ok := errors.AsType[*postgres.ConflictError](err); ok {
 		prepareResponse(
-			writer, headers, http.StatusConflict, conflictError.Shorten,
+			writer, headers, http.StatusConflict, h.prepareRequest(request.Host, conflictError.Shorten),
 		)
 		return
 	}
@@ -105,7 +105,6 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 	result := h.prepareRequest(request.Host, short)
-
 	prepareResponse(writer, headers, http.StatusCreated, result)
 }
 
