@@ -68,9 +68,30 @@ func (r *Repository) Save(originalUrl []byte, shortUrl []byte) error {
 		return fmt.Errorf("insert failed: %w", err)
 	}
 	if res.RowsAffected() == 0 {
-		return NewConflictError(originalUrl, shortUrl)
+		shortenFromDB, err := r.geeByOriginalURL(originalUrl)
+		if err != nil {
+			return err
+		}
+		return NewConflictError(originalUrl, shortenFromDB)
 	}
 	return nil
+}
+
+func (r *Repository) geeByOriginalURL(url []byte) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	var shortURL string
+	query := fmt.Sprintf("SELECT short_url from %s WHERE original_url = $1", "links")
+
+	err := r.pool.QueryRow(ctx, query, string(url)).Scan(&shortURL)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return []byte(shortURL), nil
 }
 
 func (r *Repository) SaveMany(values []model.LinkRow) error {

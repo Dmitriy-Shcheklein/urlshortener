@@ -155,6 +155,15 @@ func TestHealthcheckRepository(t *testing.T) {
 						mock.Anything, expectedQueryRaw,
 						[]interface{}{string(shortUrl), string(originalUrl)},
 					).Return(pgconn.NewCommandTag(""), nil)
+					mockPool.EXPECT().QueryRow(
+						mock.Anything, "SELECT short_url from links WHERE original_url = $1",
+						[]interface{}{string(originalUrl)},
+					).Return(mockPgxRow)
+					mockPgxRow.EXPECT().Scan(mock.Anything).Run(
+						func(args ...any) {
+							*args[0].(*string) = string(shortUrl)
+						},
+					).Return(nil)
 
 					err := repository.Save(originalUrl, shortUrl)
 

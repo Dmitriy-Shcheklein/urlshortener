@@ -420,8 +420,8 @@ func TestCreateMany(t *testing.T) {
 
 	setup := func(t *testing.T) {
 		path = "/"
-		svcIncoming = []model.CreateManyBodyRaw{{OriginalUrl: "https://practicum.yandex.ru", CorrelationID: "id"}}
-		svcResult = []model.CreateManyResponseRaw{{CorrelationId: "id", ShortURL: "url"}}
+		svcIncoming = []model.CreateManyBodyRaw{{OriginalURL: "https://practicum.yandex.ru", CorrelationID: "id"}}
+		svcResult = []model.CreateManyResponseRaw{{CorrelationID: "id", ShortURL: "url"}}
 		body = strings.NewReader("[{\"original_url\": \"https://practicum.yandex.ru\", \"correlation_id\": \"id\"}]")
 		request = httptest.NewRequest(http.MethodPost, path, body)
 		request.Header.Set("Content-Type", "application/json")

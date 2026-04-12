@@ -102,8 +102,8 @@ func TestService(t *testing.T) {
 	t.Run(
 		"Тест CreateMany", func(t *testing.T) {
 			values := []model.CreateManyBodyRaw{
-				{CorrelationID: "firstID", OriginalUrl: "firstURL"},
-				{CorrelationID: "SecondID", OriginalUrl: "secondURL"},
+				{CorrelationID: "firstID", OriginalURL: "firstURL"},
+				{CorrelationID: "SecondID", OriginalURL: "secondURL"},
 			}
 			result := []struct{ CorrelationId string }{
 				{CorrelationId: values[0].CorrelationID},
@@ -116,8 +116,8 @@ func TestService(t *testing.T) {
 					repository.EXPECT().SaveMany(
 						mock.MatchedBy(
 							func(value []model.LinkRow) bool {
-								return value[0].OriginalURL == values[0].OriginalUrl &&
-									value[1].OriginalURL == values[1].OriginalUrl
+								return value[0].OriginalURL == values[0].OriginalURL &&
+									value[1].OriginalURL == values[1].OriginalURL
 							},
 						),
 					).Return(nil)
@@ -125,8 +125,8 @@ func TestService(t *testing.T) {
 					res, err := service.CreateMany(values)
 
 					require.NoError(t, err)
-					assert.Equal(t, result[0].CorrelationId, res[0].CorrelationId)
-					assert.Equal(t, result[1].CorrelationId, res[1].CorrelationId)
+					assert.Equal(t, result[0].CorrelationId, res[0].CorrelationID)
+					assert.Equal(t, result[1].CorrelationId, res[1].CorrelationID)
 				},
 			)
 

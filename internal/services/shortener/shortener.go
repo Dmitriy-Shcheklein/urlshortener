@@ -45,14 +45,14 @@ func (s *Service) CreateMany(values []model.CreateManyBodyRaw) (
 ) {
 	shorts := make([]model.CreateManyResponseRaw, len(values))
 	for i := range values {
-		shortValue := shortenURLCRC32([]byte(values[i].OriginalUrl))
+		shortValue := shortenURLCRC32([]byte(values[i].OriginalURL))
 		shorts[i].ShortURL = string(shortValue)
-		shorts[i].CorrelationId = values[i].CorrelationID
+		shorts[i].CorrelationID = values[i].CorrelationID
 	}
 
 	payload := make([]model.LinkRow, len(values))
 	for i := range values {
-		payload[i].OriginalURL = values[i].OriginalUrl
+		payload[i].OriginalURL = values[i].OriginalURL
 		payload[i].ShortURL = shorts[i].ShortURL
 	}
 
