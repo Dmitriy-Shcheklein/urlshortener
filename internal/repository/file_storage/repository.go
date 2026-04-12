@@ -1,4 +1,4 @@
-package repository
+package file_storage
 
 import (
 	"bufio"
@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/google/uuid"
 )
 
@@ -26,7 +27,7 @@ func New(cfg *config.Config) *Repository {
 }
 
 func (r *Repository) GetByID(id string) ([]byte, error) {
-	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY, 0600)
+	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY, 0o600)
 	if err != nil {
 		return []byte{}, err
 	}
@@ -53,12 +54,30 @@ func (r *Repository) Save(originalURL []byte, short []byte) error {
 		ID:          uuid.NewString(),
 	}
 
-	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
+	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
 	if err != nil {
 		return err
 	}
 	encoder := json.NewEncoder(file)
 	if err = encoder.Encode(fileRaw); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *Repository) SaveMany(values []model.LinkRow) error {
+	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
+	if err != nil {
+		return err
+	}
+	raws := make([]FileRaw, len(values))
+	for i := range values {
+		raws[i].ID = uuid.NewString()
+		raws[i].ShortURL = values[i].ShortURL
+		raws[i].OriginalURL = values[i].OriginalURL
+	}
+	encoder := json.NewEncoder(file)
+	if err = encoder.Encode(raws); err != nil {
 		return err
 	}
 	return nil

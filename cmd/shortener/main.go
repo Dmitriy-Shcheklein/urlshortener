@@ -10,12 +10,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/bootstrap"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config"
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/handler"
+	pool "github.com/Dmitriy-Shcheklein/urlshortener/internal/config/db/postgres"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/middlewares"
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository"
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/service"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/rs/zerolog"
@@ -37,13 +36,28 @@ func main() {
 	router.Use(middleware.Timeout(time.Minute))
 	router.Use(middlewares.WithGzip)
 
-	handlers, err := handler.New(service.New(repository.New(cfg)), cfg)
-	if err != nil {
+	var dbPool *pool.Pool
+
+	if cfg.DbDSN.IsValid {
+		dbPool, err = pool.NewPool(cfg.DbDSN.Value)
+		if err != nil && cfg.DbDSN.IsValid {
+			log.Fatalf("error while creating pool: %s", err)
+		}
+		defer func() {
+			if dbPool != nil {
+				dbPool.Stop()
+			}
+		}()
+		if err = bootstrap.RunMigration(cfg.DbDSN.Value); err != nil {
+			log.Fatalf("error while execute migrations: %s", err)
+		}
+		if err = bootstrap.InitHealthcheck(cfg, dbPool, router); err != nil {
+			log.Fatalf("error while bootstrap healthcheck handler: %s", err)
+		}
+	}
+	if err = bootstrap.InitShortener(cfg, dbPool, router); err != nil {
 		log.Fatalf("error while create handlers: %s", err)
 	}
-	router.Post("/", handlers.CreateShort)
-	router.Get("/{id}", handlers.GetByID)
-	router.Post("/api/shorten", handlers.CreateFromJSONBody)
 
 	server := &http.Server{
 		Addr:              cfg.GetNetAddress(),
@@ -54,13 +68,8 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	//err = server.ListenAndServe()
-	//if err != nil {
-	//	log.Fatalf("error while start server: %s", err)
-	//}
-
 	go func() {
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err = server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("http server stopped: %v", err)
 		}
 	}()

@@ -23,3 +23,38 @@ lint:
 	else \
 		echo "⚠️  golangci-lint not installed, skipping linting"; \
 	fi
+
+.PHONY: mock-generate
+mock-generate: mock-clean
+	@echo "📦 Generating mocks..."
+	@mockery
+	@echo "✅ Mock generation completed"
+
+.PHONY: mock-clean
+mock-clean:
+	@echo "🧹 Cleaning generated mocks..."
+	@find . -name "mocks_test.go" -type f -delete
+	@echo "✅ Mocks cleaned"
+
+
+.PHONY: fmt
+fmt:
+	@echo "✨ Formatting code..."
+	@if command -v gofumpt > /dev/null; then \
+		gofumpt -w -l .; \
+	else \
+		echo "⚠️  gofumpt not installed, skipping formatting"; \
+	fi
+
+.PHONY: migrations-generate
+migrations-generate:
+	@if [ -n "$(name)" ]; then \
+		echo "Migration generating: $(name)"; \
+		migrate create -ext sql -dir ./migrations -seq $(name); \
+		echo "✅ Migration created"; \
+    else \
+		echo "Usage: make migrations-generate name=<migration_name>"; \
+		echo "Example: make migrations-generate name=create_users_table"; \
+		exit 1; \
+	fi
+

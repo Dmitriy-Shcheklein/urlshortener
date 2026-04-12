@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS original_url_idx;
