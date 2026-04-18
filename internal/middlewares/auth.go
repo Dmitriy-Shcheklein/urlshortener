@@ -24,13 +24,9 @@ func Auth(h http.Handler) http.Handler {
 		func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie("auth")
 			if errors.Is(err, http.ErrNoCookie) {
-				cookie, err = generateNewCookie()
-				if err != nil {
-					http.Error(w, "error while create cookie", http.StatusInternalServerError)
-					return
-				}
-				http.SetCookie(w, cookie)
-				h.ServeHTTP(w, r)
+				newCookie, userID := generateNewCookie()
+				http.SetCookie(w, newCookie)
+				h.ServeHTTP(w, r.WithContext(context.WithValue(context.Background(), UserIDKey, userID)))
 				return
 			} else if err != nil {
 				http.Error(w, "error while getting cookie", http.StatusInternalServerError)
@@ -47,7 +43,7 @@ func Auth(h http.Handler) http.Handler {
 	)
 }
 
-func generateNewCookie() (*http.Cookie, error) {
+func generateNewCookie() (*http.Cookie, []byte) {
 	userID := uuid.NewString()
 	userIDBytes := []byte(userID)
 
@@ -65,7 +61,7 @@ func generateNewCookie() (*http.Cookie, error) {
 		Secure:   false,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   86_400,
-	}, nil
+	}, []byte(userID)
 }
 
 func verifyToken(r *http.Request, cookie *http.Cookie) (*http.Request, error) {
