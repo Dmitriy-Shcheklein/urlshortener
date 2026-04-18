@@ -29,7 +29,8 @@ func WithGzip(h http.Handler) http.Handler {
 				h.ServeHTTP(w, r)
 				return
 			}
-			gzWriter := gzipWriter{ResponseWriter: w}
+
+			responseWriter := w
 
 			if isAcceptEncoding {
 				validTypes := map[string]bool{
@@ -57,13 +58,14 @@ func WithGzip(h http.Handler) http.Handler {
 				}()
 
 				w.Header().Set("Content-Encoding", "gzip")
-				gzWriter.Writer = gz
+				gzWriter := gzipWriter{ResponseWriter: w, Writer: gz}
+				responseWriter = gzWriter
 			}
 
 			if isContentEncoding {
 				decompressRequest(w, r)
 			}
-			h.ServeHTTP(gzWriter, r)
+			h.ServeHTTP(responseWriter, r)
 		},
 	)
 }

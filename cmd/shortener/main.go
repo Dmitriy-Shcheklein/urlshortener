@@ -35,6 +35,7 @@ func main() {
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(time.Minute))
 	router.Use(middlewares.WithGzip)
+	router.Use(middlewares.Auth)
 
 	var dbPool *pool.Pool
 

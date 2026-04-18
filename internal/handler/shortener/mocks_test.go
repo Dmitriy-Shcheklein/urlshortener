@@ -37,8 +37,8 @@ func (_m *MockService) EXPECT() *MockService_Expecter {
 }
 
 // CreateMany provides a mock function for the type MockService
-func (_mock *MockService) CreateMany(values []model.CreateManyBodyRaw) ([]model.CreateManyResponseRaw, error) {
-	ret := _mock.Called(values)
+func (_mock *MockService) CreateMany(values []model.CreateManyBodyRaw, userID []byte) ([]model.CreateManyResponseRaw, error) {
+	ret := _mock.Called(values, userID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateMany")
@@ -46,18 +46,18 @@ func (_mock *MockService) CreateMany(values []model.CreateManyBodyRaw) ([]model.
 
 	var r0 []model.CreateManyResponseRaw
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func([]model.CreateManyBodyRaw) ([]model.CreateManyResponseRaw, error)); ok {
-		return returnFunc(values)
+	if returnFunc, ok := ret.Get(0).(func([]model.CreateManyBodyRaw, []byte) ([]model.CreateManyResponseRaw, error)); ok {
+		return returnFunc(values, userID)
 	}
-	if returnFunc, ok := ret.Get(0).(func([]model.CreateManyBodyRaw) []model.CreateManyResponseRaw); ok {
-		r0 = returnFunc(values)
+	if returnFunc, ok := ret.Get(0).(func([]model.CreateManyBodyRaw, []byte) []model.CreateManyResponseRaw); ok {
+		r0 = returnFunc(values, userID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]model.CreateManyResponseRaw)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func([]model.CreateManyBodyRaw) error); ok {
-		r1 = returnFunc(values)
+	if returnFunc, ok := ret.Get(1).(func([]model.CreateManyBodyRaw, []byte) error); ok {
+		r1 = returnFunc(values, userID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -71,18 +71,24 @@ type MockService_CreateMany_Call struct {
 
 // CreateMany is a helper method to define mock.On call
 //   - values []model.CreateManyBodyRaw
-func (_e *MockService_Expecter) CreateMany(values interface{}) *MockService_CreateMany_Call {
-	return &MockService_CreateMany_Call{Call: _e.mock.On("CreateMany", values)}
+//   - userID []byte
+func (_e *MockService_Expecter) CreateMany(values interface{}, userID interface{}) *MockService_CreateMany_Call {
+	return &MockService_CreateMany_Call{Call: _e.mock.On("CreateMany", values, userID)}
 }
 
-func (_c *MockService_CreateMany_Call) Run(run func(values []model.CreateManyBodyRaw)) *MockService_CreateMany_Call {
+func (_c *MockService_CreateMany_Call) Run(run func(values []model.CreateManyBodyRaw, userID []byte)) *MockService_CreateMany_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 []model.CreateManyBodyRaw
 		if args[0] != nil {
 			arg0 = args[0].([]model.CreateManyBodyRaw)
 		}
+		var arg1 []byte
+		if args[1] != nil {
+			arg1 = args[1].([]byte)
+		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -93,14 +99,14 @@ func (_c *MockService_CreateMany_Call) Return(createManyResponseRaws []model.Cre
 	return _c
 }
 
-func (_c *MockService_CreateMany_Call) RunAndReturn(run func(values []model.CreateManyBodyRaw) ([]model.CreateManyResponseRaw, error)) *MockService_CreateMany_Call {
+func (_c *MockService_CreateMany_Call) RunAndReturn(run func(values []model.CreateManyBodyRaw, userID []byte) ([]model.CreateManyResponseRaw, error)) *MockService_CreateMany_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // CreateShort provides a mock function for the type MockService
-func (_mock *MockService) CreateShort(originalURL []byte) ([]byte, error) {
-	ret := _mock.Called(originalURL)
+func (_mock *MockService) CreateShort(originalURL []byte, userID []byte) ([]byte, error) {
+	ret := _mock.Called(originalURL, userID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateShort")
@@ -108,18 +114,18 @@ func (_mock *MockService) CreateShort(originalURL []byte) ([]byte, error) {
 
 	var r0 []byte
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func([]byte) ([]byte, error)); ok {
-		return returnFunc(originalURL)
+	if returnFunc, ok := ret.Get(0).(func([]byte, []byte) ([]byte, error)); ok {
+		return returnFunc(originalURL, userID)
 	}
-	if returnFunc, ok := ret.Get(0).(func([]byte) []byte); ok {
-		r0 = returnFunc(originalURL)
+	if returnFunc, ok := ret.Get(0).(func([]byte, []byte) []byte); ok {
+		r0 = returnFunc(originalURL, userID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]byte)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func([]byte) error); ok {
-		r1 = returnFunc(originalURL)
+	if returnFunc, ok := ret.Get(1).(func([]byte, []byte) error); ok {
+		r1 = returnFunc(originalURL, userID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -133,18 +139,24 @@ type MockService_CreateShort_Call struct {
 
 // CreateShort is a helper method to define mock.On call
 //   - originalURL []byte
-func (_e *MockService_Expecter) CreateShort(originalURL interface{}) *MockService_CreateShort_Call {
-	return &MockService_CreateShort_Call{Call: _e.mock.On("CreateShort", originalURL)}
+//   - userID []byte
+func (_e *MockService_Expecter) CreateShort(originalURL interface{}, userID interface{}) *MockService_CreateShort_Call {
+	return &MockService_CreateShort_Call{Call: _e.mock.On("CreateShort", originalURL, userID)}
 }
 
-func (_c *MockService_CreateShort_Call) Run(run func(originalURL []byte)) *MockService_CreateShort_Call {
+func (_c *MockService_CreateShort_Call) Run(run func(originalURL []byte, userID []byte)) *MockService_CreateShort_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 []byte
 		if args[0] != nil {
 			arg0 = args[0].([]byte)
 		}
+		var arg1 []byte
+		if args[1] != nil {
+			arg1 = args[1].([]byte)
+		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -155,7 +167,7 @@ func (_c *MockService_CreateShort_Call) Return(bytes []byte, err error) *MockSer
 	return _c
 }
 
-func (_c *MockService_CreateShort_Call) RunAndReturn(run func(originalURL []byte) ([]byte, error)) *MockService_CreateShort_Call {
+func (_c *MockService_CreateShort_Call) RunAndReturn(run func(originalURL []byte, userID []byte) ([]byte, error)) *MockService_CreateShort_Call {
 	_c.Call.Return(run)
 	return _c
 }

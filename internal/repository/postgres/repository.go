@@ -11,12 +11,16 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-type PgxRow = pgx.Row
+type (
+	PgxRow  = pgx.Row
+	PgxRows = pgx.Rows
+)
 
 type Pool interface {
 	Ping() error
 	QueryRow(ctx context.Context, sql string, args ...any) PgxRow
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
 type Repository struct {
@@ -53,16 +57,17 @@ func (r *Repository) GetByID(ID string) ([]byte, error) {
 	return []byte(originalURL), nil
 }
 
-func (r *Repository) Save(originalUrl []byte, shortUrl []byte) error {
+func (r *Repository) Save(originalUrl []byte, shortUrl []byte, userID []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	query := fmt.Sprintf(
-		"INSERT INTO %s (short_url, original_url) VALUES ($1, $2) ON CONFLICT (original_url) DO NOTHING", "links",
+		"INSERT INTO %s (short_url, original_url, user_id) VALUES ($1, $2, $3) ON CONFLICT (original_url) DO NOTHING",
+		"links",
 	)
 
 	res, err := r.pool.Exec(
-		ctx, query, string(shortUrl), string(originalUrl),
+		ctx, query, string(shortUrl), string(originalUrl), string(userID),
 	)
 	if err != nil {
 		return fmt.Errorf("insert failed: %w", err)
@@ -94,7 +99,7 @@ func (r *Repository) geeByOriginalURL(url []byte) ([]byte, error) {
 	return []byte(shortURL), nil
 }
 
-func (r *Repository) SaveMany(values []model.LinkRow) error {
+func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
@@ -102,15 +107,15 @@ func (r *Repository) SaveMany(values []model.LinkRow) error {
 		return nil
 	}
 
-	query := "INSERT INTO links (short_url, original_url) VALUES "
-	args := make([]any, 0, len(values)*2)
+	query := "INSERT INTO links (short_url, original_url, user_id) VALUES "
+	args := make([]any, 0, len(values)*3)
 
 	for i, item := range values {
 		if i > 0 {
 			query += ", "
 		}
-		query += fmt.Sprintf("($%d, $%d)", i*2+1, i*2+2)
-		args = append(args, item.ShortURL, item.OriginalURL)
+		query += fmt.Sprintf("($%d, $%d, $%d)", i*3+1, i*3+2, i*3+3)
+		args = append(args, item.ShortURL, item.OriginalURL, string(userID))
 	}
 
 	_, err := r.pool.Exec(
@@ -120,4 +125,22 @@ func (r *Repository) SaveMany(values []model.LinkRow) error {
 		return fmt.Errorf("insert failed: %w", err)
 	}
 	return nil
+}
+
+func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	query := fmt.Sprintf("SELECT short_url, original_url from %s WHERE user_id = $1", "links")
+
+	rows, err := r.pool.Query(ctx, query, string(userID))
+	if err != nil {
+		return nil, err
+	}
+
+	links, err := pgx.CollectRows(rows, pgx.RowToStructByNameLax[model.LinkRow])
+	if err != nil {
+		return nil, err
+	}
+	return links, nil
 }

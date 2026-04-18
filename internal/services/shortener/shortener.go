@@ -10,8 +10,9 @@ import (
 
 type LinkRepository interface {
 	GetByID(ID string) ([]byte, error)
-	Save(path []byte, short []byte) error
-	SaveMany(values []model.LinkRow) error
+	Save(path []byte, short []byte, userID []byte) error
+	SaveMany(values []model.LinkRow, userID []byte) error
+	FindByUserID(userID []byte) ([]model.LinkRow, error)
 }
 
 type Service struct {
@@ -30,17 +31,17 @@ func (s *Service) GetByID(id string) ([]byte, error) {
 	return link, nil
 }
 
-func (s *Service) CreateShort(originalURL []byte) ([]byte, error) {
+func (s *Service) CreateShort(originalURL []byte, userID []byte) ([]byte, error) {
 	short := shortenURLCRC32(originalURL)
 
-	if err := s.linkRepository.Save(originalURL, short); err != nil {
+	if err := s.linkRepository.Save(originalURL, short, userID); err != nil {
 		return short, err
 	}
 
 	return short, nil
 }
 
-func (s *Service) CreateMany(values []model.CreateManyBodyRaw) (
+func (s *Service) CreateMany(values []model.CreateManyBodyRaw, userID []byte) (
 	[]model.CreateManyResponseRaw, error,
 ) {
 	shorts := make([]model.CreateManyResponseRaw, len(values))
@@ -56,8 +57,12 @@ func (s *Service) CreateMany(values []model.CreateManyBodyRaw) (
 		payload[i].ShortURL = shorts[i].ShortURL
 	}
 
-	err := s.linkRepository.SaveMany(payload)
+	err := s.linkRepository.SaveMany(payload, userID)
 	return shorts, err
+}
+
+func (s *Service) FindByUserID(userID []byte) ([]model.LinkRow, error) {
+	return s.linkRepository.FindByUserID(userID)
 }
 
 func shortenURLCRC32(url []byte) []byte {

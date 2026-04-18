@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/middlewares"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/postgres"
 	"github.com/go-playground/validator/v10"
@@ -15,8 +16,8 @@ import (
 
 type Service interface {
 	GetByID(ID string) ([]byte, error)
-	CreateShort(originalURL []byte) ([]byte, error)
-	CreateMany(values []model.CreateManyBodyRaw) ([]model.CreateManyResponseRaw, error)
+	CreateShort(originalURL []byte, userID []byte) ([]byte, error)
+	CreateMany(values []model.CreateManyBodyRaw, userID []byte) ([]model.CreateManyResponseRaw, error)
 }
 
 type Config interface {
@@ -84,7 +85,12 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 		http.Error(writer, "Empty body", http.StatusBadRequest)
 		return
 	}
-	short, err := h.service.CreateShort(body)
+	userID, err := getUserID(request)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	short, err := h.service.CreateShort(body, userID)
 	headers := map[string]string{"Content-Type": "text/plain"}
 	if conflictError, ok := errors.AsType[*postgres.ConflictError](err); ok {
 		prepareResponse(
@@ -119,8 +125,12 @@ func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.R
 		http.Error(writer, "Error while validate body", http.StatusBadRequest)
 		return
 	}
-
-	short, err := h.service.CreateShort([]byte(body.URL))
+	userID, err := getUserID(request)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	short, err := h.service.CreateShort([]byte(body.URL), userID)
 	headers := map[string]string{"Content-Type": "application/json"}
 	if conflictError, ok := errors.AsType[*postgres.ConflictError](err); ok {
 		h.prepareJSONResponse(writer, request.Host, conflictError.Shorten, http.StatusConflict, headers)
@@ -170,8 +180,12 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 			return
 		}
 	}
-
-	shorts, err := h.service.CreateMany(deserialized)
+	userID, err := getUserID(request)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	shorts, err := h.service.CreateMany(deserialized, userID)
 	if err != nil {
 		logger.Logger.Error().Err(err).Msg("error while create short url\n")
 		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
@@ -235,4 +249,12 @@ func prepareResponse(w http.ResponseWriter, headers map[string]string, statusCod
 		http.Error(w, "Error while write body", http.StatusInternalServerError)
 		return
 	}
+}
+
+func getUserID(r *http.Request) ([]byte, error) {
+	v, ok := r.Context().Value(middlewares.UserIDKey).([]byte)
+	if !ok {
+		return []byte{}, errors.New("error while getting UserID")
+	}
+	return v, nil
 }

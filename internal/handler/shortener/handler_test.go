@@ -1,6 +1,7 @@
 package shortener
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/middlewares"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/postgres"
 	"github.com/rs/zerolog"
@@ -136,17 +138,20 @@ func TestCreateShort(t *testing.T) {
 		body        io.Reader
 		shortLink   []byte
 		baseAddress []byte
+		userID      []byte
 	)
 
 	logger.InitLogger(zerolog.Disabled)
 
 	setup := func(t *testing.T) {
+		userID = []byte("userID")
 		path = "/"
 		fullLink = "https://ya.ru"
 		shortLink = []byte("short")
 		body = strings.NewReader(fullLink)
 		request = httptest.NewRequest(http.MethodGet, path, body)
 		request.Header.Set("Content-Type", "text/plain")
+		request = request.WithContext(context.WithValue(context.Background(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
 		config = NewMockConfig(t)
@@ -158,7 +163,7 @@ func TestCreateShort(t *testing.T) {
 		"Должен выполниться без ошибок", func(t *testing.T) {
 			setup(t)
 
-			service.EXPECT().CreateShort([]byte(fullLink)).Return(shortLink, nil)
+			service.EXPECT().CreateShort([]byte(fullLink), userID).Return(shortLink, nil)
 			config.EXPECT().GetBaseAddress().Return(baseAddress)
 
 			assert.NotPanics(
@@ -182,7 +187,7 @@ func TestCreateShort(t *testing.T) {
 			for _, test := range tests {
 				setup(t)
 
-				service.EXPECT().CreateShort([]byte(fullLink)).Return(shortLink, nil)
+				service.EXPECT().CreateShort([]byte(fullLink), userID).Return(shortLink, nil)
 				config.EXPECT().GetBaseAddress().Return(test.baseAddress)
 
 				handler.CreateShort(writer, request)
@@ -200,7 +205,7 @@ func TestCreateShort(t *testing.T) {
 
 			shLink := []byte("short")
 
-			service.EXPECT().CreateShort([]byte(fullLink)).Return(
+			service.EXPECT().CreateShort([]byte(fullLink), userID).Return(
 				shLink, postgres.NewConflictError([]byte(fullLink), shLink),
 			)
 			config.EXPECT().GetBaseAddress().Return([]byte{})
@@ -242,7 +247,7 @@ func TestCreateShort(t *testing.T) {
 		"Ошибка создания короткой ссылки", func(t *testing.T) {
 			setup(t)
 
-			service.EXPECT().CreateShort([]byte(fullLink)).Return(nil, assert.AnError)
+			service.EXPECT().CreateShort([]byte(fullLink), userID).Return(nil, assert.AnError)
 
 			handler.CreateShort(writer, request)
 
@@ -277,15 +282,18 @@ func TestCreateFromJSONBody(t *testing.T) {
 		body        io.Reader
 		shortLink   []byte
 		baseAddress []byte
+		userID      []byte
 	)
 
 	setup := func(t *testing.T) {
+		userID = []byte("userID")
 		path = "/"
 		fullLink = "https://practicum.yandex.ru"
 		shortLink = []byte("short")
 		body = strings.NewReader("{\"url\": \"https://practicum.yandex.ru\"}")
 		request = httptest.NewRequest(http.MethodPost, path, body)
 		request.Header.Set("Content-Type", "application/json")
+		request = request.WithContext(context.WithValue(context.Background(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
 		config = NewMockConfig(t)
@@ -297,7 +305,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 		"Должен выполниться без ошибок", func(t *testing.T) {
 			setup(t)
 
-			service.EXPECT().CreateShort([]byte(fullLink)).Return(shortLink, nil)
+			service.EXPECT().CreateShort([]byte(fullLink), userID).Return(shortLink, nil)
 			config.EXPECT().GetBaseAddress().Return(baseAddress)
 
 			assert.NotPanics(
@@ -321,7 +329,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 			for _, test := range tests {
 				setup(t)
 
-				service.EXPECT().CreateShort([]byte(fullLink)).Return(shortLink, nil)
+				service.EXPECT().CreateShort([]byte(fullLink), userID).Return(shortLink, nil)
 				config.EXPECT().GetBaseAddress().Return(test.baseAddress)
 
 				handler.CreateFromJSONBody(writer, request)
@@ -339,7 +347,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 			originalUrl := []byte(fullLink)
 			expectedBody := "{\"result\":\"https://ya.ru/short\"}"
 
-			service.EXPECT().CreateShort(originalUrl).Return(
+			service.EXPECT().CreateShort(originalUrl, userID).Return(
 				shortLink, postgres.NewConflictError(originalUrl, shortLink),
 			)
 			config.EXPECT().GetBaseAddress().Return([]byte("https://ya.ru"))
@@ -381,7 +389,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 		"Ошибка создания короткой ссылки", func(t *testing.T) {
 			setup(t)
 
-			service.EXPECT().CreateShort([]byte(fullLink)).Return(nil, assert.AnError)
+			service.EXPECT().CreateShort([]byte(fullLink), userID).Return(nil, assert.AnError)
 
 			handler.CreateFromJSONBody(writer, request)
 
@@ -416,15 +424,18 @@ func TestCreateMany(t *testing.T) {
 		path        string
 		body        io.Reader
 		baseAddress []byte
+		userID      []byte
 	)
 
 	setup := func(t *testing.T) {
+		userID = []byte("userID")
 		path = "/"
 		svcIncoming = []model.CreateManyBodyRaw{{OriginalURL: "https://practicum.yandex.ru", CorrelationID: "id"}}
 		svcResult = []model.CreateManyResponseRaw{{CorrelationID: "id", ShortURL: "url"}}
 		body = strings.NewReader("[{\"original_url\": \"https://practicum.yandex.ru\", \"correlation_id\": \"id\"}]")
 		request = httptest.NewRequest(http.MethodPost, path, body)
 		request.Header.Set("Content-Type", "application/json")
+		request = request.WithContext(context.WithValue(context.Background(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
 		config = NewMockConfig(t)
@@ -437,7 +448,7 @@ func TestCreateMany(t *testing.T) {
 		"Должен выполниться без ошибок", func(t *testing.T) {
 			setup(t)
 
-			service.EXPECT().CreateMany(svcIncoming).Return(svcResult, nil)
+			service.EXPECT().CreateMany(svcIncoming, userID).Return(svcResult, nil)
 			config.EXPECT().GetBaseAddress().Return(baseAddress)
 
 			assert.NotPanics(
@@ -467,7 +478,7 @@ func TestCreateMany(t *testing.T) {
 			for _, test := range tests {
 				setup(t)
 
-				service.EXPECT().CreateMany(svcIncoming).Return(svcResult, nil)
+				service.EXPECT().CreateMany(svcIncoming, userID).Return(svcResult, nil)
 				config.EXPECT().GetBaseAddress().Return(test.baseAddress)
 
 				handler.CreateMany(writer, request)
@@ -507,7 +518,7 @@ func TestCreateMany(t *testing.T) {
 		"Ошибка создания короткой ссылки", func(t *testing.T) {
 			setup(t)
 
-			service.EXPECT().CreateMany(svcIncoming).Return(nil, assert.AnError)
+			service.EXPECT().CreateMany(svcIncoming, userID).Return(nil, assert.AnError)
 
 			handler.CreateMany(writer, request)
 
