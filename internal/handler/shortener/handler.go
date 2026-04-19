@@ -253,6 +253,11 @@ func (h *Handler) prepareRequest(host string, short []byte) []byte {
 func (h *Handler) prepareFindByUserIDResponse(
 	w http.ResponseWriter, host string, res []model.LinkRow, status int, headers map[string]string,
 ) {
+	if status == http.StatusNoContent {
+		prepareResponse(w, headers, status, []byte{})
+		return
+	}
+
 	var output []FindByUserIDResponse
 	if len(res) != 0 {
 		for _, value := range res {
