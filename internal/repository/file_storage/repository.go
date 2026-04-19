@@ -21,7 +21,7 @@ func New(cfg *config.Config) *Repository {
 }
 
 func (r *Repository) GetByID(id string) ([]byte, error) {
-	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY, 0o600)
+	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY|os.O_CREATE, 0o600)
 	if err != nil {
 		return []byte{}, err
 	}
@@ -80,7 +80,7 @@ func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 }
 
 func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
-	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY, 0o600)
+	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY|os.O_CREATE, 0o600)
 	if err != nil {
 		return []model.LinkRow{}, err
 	}
