@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
@@ -61,14 +62,14 @@ func (r *Repository) Save(originalUrl []byte, shortUrl []byte, userID []byte) er
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
+	userIDStr := string(userID)
+
 	query := fmt.Sprintf(
-		"INSERT INTO %s (short_url, original_url, user_id) VALUES ($1, $2, $3) ON CONFLICT (original_url) DO NOTHING",
-		"links",
+		"INSERT INTO %s (short_url, original_url, user_id) VALUES ('%s', '%s', '%s'::uuid) ON CONFLICT (original_url) DO NOTHING",
+		"links", string(shortUrl), string(originalUrl), userIDStr,
 	)
 
-	res, err := r.pool.Exec(
-		ctx, query, string(shortUrl), string(originalUrl), string(userID),
-	)
+	res, err := r.pool.Exec(ctx, query)
 	if err != nil {
 		return fmt.Errorf("insert failed: %w", err)
 	}
@@ -107,20 +108,20 @@ func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 		return nil
 	}
 
-	query := "INSERT INTO links (short_url, original_url, user_id) VALUES "
-	args := make([]any, 0, len(values)*3)
+	userIDStr := string(userID)
 
-	for i, item := range values {
-		if i > 0 {
-			query += ", "
-		}
-		query += fmt.Sprintf("($%d, $%d, $%d)", i*3+1, i*3+2, i*3+3)
-		args = append(args, item.ShortURL, item.OriginalURL, string(userID))
+	query := "INSERT INTO links (short_url, original_url, user_id) VALUES "
+	valueRanges := make([]string, 0, len(values))
+
+	for _, item := range values {
+		valueRanges = append(
+			valueRanges, fmt.Sprintf("('%s', '%s', '%s'::uuid)", item.ShortURL, item.OriginalURL, userIDStr),
+		)
 	}
 
-	_, err := r.pool.Exec(
-		ctx, query, args...,
-	)
+	query += strings.Join(valueRanges, ", ")
+
+	_, err := r.pool.Exec(ctx, query)
 	if err != nil {
 		return fmt.Errorf("insert failed: %w", err)
 	}
@@ -131,9 +132,13 @@ func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	query := fmt.Sprintf("SELECT id, short_url, original_url, user_id from %s WHERE user_id = $1", "links")
+	userIDStr := string(userID)
 
-	rows, err := r.pool.Query(ctx, query, string(userID))
+	query := fmt.Sprintf(
+		"SELECT id, short_url, original_url, user_id from %s WHERE user_id = '%s'::uuid", "links", userIDStr,
+	)
+
+	rows, err := r.pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}

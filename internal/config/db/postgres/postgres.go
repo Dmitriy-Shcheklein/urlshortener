@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -20,6 +21,19 @@ func NewPool(connString string) (*Pool, error) {
 	if err != nil {
 		return pool, err
 	}
+
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		conn.TypeMap().RegisterType(
+			&pgtype.Type{
+				Name:  "uuid",
+				OID:   pgtype.UUIDOID,
+				Codec: &pgtype.UUIDCodec{},
+			},
+		)
+		conn.TypeMap().RegisterDefaultPgType(&pgtype.UUID{}, "uuid")
+		return nil
+	}
+
 	newPool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return pool, err
@@ -40,7 +54,7 @@ func (p *Pool) Ping() error {
 }
 
 func (p *Pool) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
-	return p.pool.Query(ctx, sql, args)
+	return p.pool.Query(ctx, sql, args...)
 }
 
 func (p *Pool) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {

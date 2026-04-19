@@ -86,7 +86,7 @@ func TestHealthcheckRepository(t *testing.T) {
 				{ShortURL: "firstShort", OriginalURL: "firstOriginal"},
 				{ShortURL: "secondShort", OriginalURL: "secondOriginal"},
 			}
-			expectedQueryRaw := "INSERT INTO links (short_url, original_url, user_id) VALUES ($1, $2, $3), ($4, $5, $6)"
+			expectedQueryRaw := "INSERT INTO links (short_url, original_url, user_id) VALUES ('firstShort', 'firstOriginal', 'userID'::uuid), ('secondShort', 'secondOriginal', 'userID'::uuid)"
 			t.Run(
 				"Должен выполниться без ошибок", func(t *testing.T) {
 					setup(t)
@@ -94,7 +94,6 @@ func TestHealthcheckRepository(t *testing.T) {
 					mockPool.EXPECT().Exec(
 						mock.Anything,
 						expectedQueryRaw,
-						[]any{"firstShort", "firstOriginal", "userID", "secondShort", "secondOriginal", "userID"},
 					).Return(pgconn.CommandTag{}, nil)
 
 					assert.NoError(t, repository.SaveMany(incoming, userID))
@@ -108,7 +107,6 @@ func TestHealthcheckRepository(t *testing.T) {
 					testError := assert.AnError
 					mockPool.EXPECT().Exec(
 						mock.Anything, expectedQueryRaw,
-						[]any{"firstShort", "firstOriginal", "userID", "secondShort", "secondOriginal", "userID"},
 					).Return(pgconn.CommandTag{}, testError)
 
 					require.Error(t, repository.SaveMany(incoming, userID))
@@ -122,14 +120,13 @@ func TestHealthcheckRepository(t *testing.T) {
 			originalUrl := []byte("original")
 			shortUrl := []byte("short")
 			userID := []byte("userID")
-			expectedQueryRaw := "INSERT INTO links (short_url, original_url, user_id) VALUES ($1, $2, $3) ON CONFLICT (original_url) DO NOTHING"
+			expectedQueryRaw := "INSERT INTO links (short_url, original_url, user_id) VALUES ('short', 'original', 'userID'::uuid) ON CONFLICT (original_url) DO NOTHING"
 			t.Run(
 				"Должен выполниться без ошибок", func(t *testing.T) {
 					setup(t)
 
 					mockPool.EXPECT().Exec(
 						mock.Anything, expectedQueryRaw,
-						[]interface{}{string(shortUrl), string(originalUrl), string(userID)},
 					).Return(pgconn.NewCommandTag("1"), nil)
 
 					assert.NoError(t, repository.Save(originalUrl, shortUrl, userID))
@@ -143,7 +140,6 @@ func TestHealthcheckRepository(t *testing.T) {
 					testError := assert.AnError
 					mockPool.EXPECT().Exec(
 						mock.Anything, expectedQueryRaw,
-						[]interface{}{string(shortUrl), string(originalUrl), string(userID)},
 					).Return(pgconn.NewCommandTag("1"), testError)
 
 					require.Error(t, repository.Save(originalUrl, shortUrl, userID))
@@ -157,7 +153,6 @@ func TestHealthcheckRepository(t *testing.T) {
 
 					mockPool.EXPECT().Exec(
 						mock.Anything, expectedQueryRaw,
-						[]interface{}{string(shortUrl), string(originalUrl), string(userID)},
 					).Return(pgconn.NewCommandTag(""), nil)
 					mockPool.EXPECT().QueryRow(
 						mock.Anything, "SELECT short_url from links WHERE original_url = $1",
@@ -225,7 +220,7 @@ func TestHealthcheckRepository(t *testing.T) {
 	t.Run(
 		"Тест метода FindByUserID", func(t *testing.T) {
 			userID := []byte("userID")
-			expectedQuery := "SELECT id, short_url, original_url, user_id from links WHERE user_id = $1"
+			expectedQuery := "SELECT id, short_url, original_url, user_id from links WHERE user_id = 'userID'::uuid"
 			expectedRes := []model.LinkRow{
 				{
 					ID:          "id1",
@@ -245,16 +240,18 @@ func TestHealthcheckRepository(t *testing.T) {
 					setup(t)
 
 					mockPool.EXPECT().Query(
-						mock.Anything, expectedQuery, []interface{}{string(userID)},
+						mock.Anything, expectedQuery,
 					).Return(mockPgxRows, nil)
 
 					for i := 0; i < len(expectedRes); i++ {
-						mockPgxRows.EXPECT().FieldDescriptions().Return([]pgconn.FieldDescription{
-							{Name: "id"},
-							{Name: "short_url"},
-							{Name: "original_url"},
-							{Name: "user_id"},
-						}).Once()
+						mockPgxRows.EXPECT().FieldDescriptions().Return(
+							[]pgconn.FieldDescription{
+								{Name: "id"},
+								{Name: "short_url"},
+								{Name: "original_url"},
+								{Name: "user_id"},
+							},
+						).Once()
 					}
 
 					mockPgxRows.EXPECT().Next().Return(true).Once()
@@ -288,47 +285,55 @@ func TestHealthcheckRepository(t *testing.T) {
 				},
 			)
 
-			t.Run("Ошибка выполнения запроса", func(t *testing.T) {
-				setup(t)
+			t.Run(
+				"Ошибка выполнения запроса", func(t *testing.T) {
+					setup(t)
 
-				testError := assert.AnError
-				mockPool.EXPECT().Query(
-					mock.Anything, expectedQuery, []interface{}{string(userID)},
-				).Return(mockPgxRows, testError)
+					testError := assert.AnError
+					mockPool.EXPECT().Query(
+						mock.Anything, expectedQuery,
+					).Return(mockPgxRows, testError)
 
-				res, err := repository.FindByUserID(userID)
+					res, err := repository.FindByUserID(userID)
 
-				require.Error(t, err)
-				assert.Equal(t, testError, err)
-				assert.Nil(t, res)
-			})
+					require.Error(t, err)
+					assert.Equal(t, testError, err)
+					assert.Nil(t, res)
+				},
+			)
 
-			t.Run("Ошибка десериализации данных", func(t *testing.T) {
-				setup(t)
+			t.Run(
+				"Ошибка десериализации данных", func(t *testing.T) {
+					setup(t)
 
-				testError := assert.AnError
-				mockPool.EXPECT().Query(
-					mock.Anything, expectedQuery, []interface{}{string(userID)},
-				).Return(mockPgxRows, nil)
+					testError := assert.AnError
+					mockPool.EXPECT().Query(
+						mock.Anything, expectedQuery,
+					).Return(mockPgxRows, nil)
 
-				mockPgxRows.EXPECT().FieldDescriptions().Return([]pgconn.FieldDescription{
-					{Name: "id"},
-					{Name: "short_url"},
-					{Name: "original_url"},
-					{Name: "user_id"},
-				}).Once()
+					mockPgxRows.EXPECT().FieldDescriptions().Return(
+						[]pgconn.FieldDescription{
+							{Name: "id"},
+							{Name: "short_url"},
+							{Name: "original_url"},
+							{Name: "user_id"},
+						},
+					).Once()
 
-				mockPgxRows.EXPECT().Next().Return(true).Once()
-				mockPgxRows.EXPECT().Scan(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(testError).Once()
+					mockPgxRows.EXPECT().Next().Return(true).Once()
+					mockPgxRows.EXPECT().Scan(
+						mock.Anything, mock.Anything, mock.Anything, mock.Anything,
+					).Return(testError).Once()
 
-				mockPgxRows.EXPECT().Close().Return().Once()
+					mockPgxRows.EXPECT().Close().Return().Once()
 
-				res, err := repository.FindByUserID(userID)
+					res, err := repository.FindByUserID(userID)
 
-				require.Error(t, err)
-				assert.Equal(t, testError, err)
-				assert.Nil(t, res)
-			})
+					require.Error(t, err)
+					assert.Equal(t, testError, err)
+					assert.Nil(t, res)
+				},
+			)
 		},
 	)
 }
