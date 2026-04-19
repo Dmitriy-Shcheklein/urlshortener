@@ -335,8 +335,7 @@ func TestAuth(t *testing.T) {
 				middleware.ServeHTTP(writer, request)
 
 				assert.False(t, nextHandler.called, "NextHandler НЕ должен быть вызван при неверной подписи")
-				assert.Equal(t, http.StatusInternalServerError, writer.Code)
-				assert.Contains(t, writer.Body.String(), "error while verify cookie")
+				assert.Equal(t, http.StatusUnauthorized, writer.Code)
 				assert.Contains(t, writer.Body.String(), "invalid signature")
 			},
 		)

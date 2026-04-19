@@ -42,8 +42,7 @@ func Auth(h http.Handler) http.Handler {
 			}
 
 			withCtx, err := verifyToken(r, cookie)
-			var invalidUserFormatErr *InvalidUserFormatError
-			if errors.As(err, &invalidUserFormatErr) {
+			if _, ok := errors.AsType[*InvalidUserFormatError](err); ok {
 				http.Error(w, err.Error(), http.StatusUnauthorized)
 				return
 			}
@@ -95,7 +94,7 @@ func verifyToken(r *http.Request, cookie *http.Cookie) (*http.Request, error) {
 
 	expectedSignature := base64.URLEncoding.EncodeToString(h.Sum(nil))
 	if !hmac.Equal([]byte(receivedSignature), []byte(expectedSignature)) {
-		return r, fmt.Errorf("invalid signature")
+		return r, &InvalidUserFormatError{message: "invalid signature"}
 	}
 
 	ctx := context.WithValue(r.Context(), UserIDKey, userIDBytes)
