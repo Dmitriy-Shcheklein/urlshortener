@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -37,17 +36,13 @@ func Auth(h http.Handler) http.Handler {
 				h.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), UserIDKey, userID)))
 				return
 			} else if err != nil {
-				http.Error(w, "error while getting cookie", http.StatusInternalServerError)
+				http.Error(w, "error while getting cookie: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
 
 			withCtx, err := verifyToken(r, cookie)
 			if _, ok := errors.AsType[*InvalidUserFormatError](err); ok {
 				http.Error(w, err.Error(), http.StatusUnauthorized)
-				return
-			}
-			if err != nil {
-				http.Error(w, fmt.Sprintf("error while verify cookie: %v", err), http.StatusInternalServerError)
 				return
 			}
 			h.ServeHTTP(w, withCtx)

@@ -3,7 +3,6 @@ package shortener
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -214,17 +213,25 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 }
 
 func (h *Handler) GetByUserID(w http.ResponseWriter, r *http.Request) {
+	logger.Logger.Info().Str("handler", "GetByUserID").Msg("Entering handler")
+
 	userID, err := getUserID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
-		return
-	}
-
-	res, err := h.service.FindByUserID(userID)
-	if err != nil {
+		logger.Logger.Error().Err(err).Str("handler", "GetByUserID").Msg("getUserID error")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	logger.Logger.Info().Str("userID", string(userID)).Str("handler", "GetByUserID").Msg("User ID found")
+
+	res, err := h.service.FindByUserID(userID)
+	if err != nil {
+		logger.Logger.Error().Err(err).Str("handler", "GetByUserID").Msg("service.FindByUserID error")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	logger.Logger.Info().Int("result_count", len(res)).Str("handler", "GetByUserID").Msg("Results found")
 
 	var status int
 	if len(res) == 0 {
@@ -314,10 +321,7 @@ func prepareResponse(w http.ResponseWriter, headers map[string]string, statusCod
 func getUserID(r *http.Request) ([]byte, error) {
 	v, ok := r.Context().Value(middlewares.UserIDKey).([]byte)
 	if !ok {
-		return nil, fmt.Errorf("user ID not found in context")
-	}
-	if len(v) == 0 {
-		return nil, fmt.Errorf("user ID is empty")
+		return []byte{}, errors.New("error while getting UserID")
 	}
 	return v, nil
 }
