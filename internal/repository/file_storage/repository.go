@@ -95,6 +95,7 @@ func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 			if err = json.Unmarshal([]byte(line), &raw); err != nil {
 				return out, err
 			}
+			out = append(out, raw)
 		}
 	}
 	return out, nil
