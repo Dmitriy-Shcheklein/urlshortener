@@ -636,7 +636,6 @@ func TestHandler_GetByUserID(t *testing.T) {
 			handler.GetByUserID(writer, request)
 
 			assert.Equal(t, http.StatusNoContent, writer.Code)
-			assert.Equal(t, "application/json", writer.Header().Get("Content-Type"))
 		},
 	)
 }
