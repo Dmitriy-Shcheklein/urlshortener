@@ -31,6 +31,7 @@ func InitShortener(cfg *config.Config, pool *pool.Pool, router *chi.Mux) error {
 	router.Get("/{id}", handler.GetByID)
 	router.Post("/api/shorten", handler.CreateFromJSONBody)
 	router.Post("/api/shorten/batch", handler.CreateMany)
+	router.Get("/api/user/urls", handler.GetByUserID)
 
 	return nil
 }

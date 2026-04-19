@@ -172,6 +172,68 @@ func (_c *MockService_CreateShort_Call) RunAndReturn(run func(originalURL []byte
 	return _c
 }
 
+// FindByUserID provides a mock function for the type MockService
+func (_mock *MockService) FindByUserID(userID []byte) ([]model.LinkRow, error) {
+	ret := _mock.Called(userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindByUserID")
+	}
+
+	var r0 []model.LinkRow
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func([]byte) ([]model.LinkRow, error)); ok {
+		return returnFunc(userID)
+	}
+	if returnFunc, ok := ret.Get(0).(func([]byte) []model.LinkRow); ok {
+		r0 = returnFunc(userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.LinkRow)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func([]byte) error); ok {
+		r1 = returnFunc(userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockService_FindByUserID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindByUserID'
+type MockService_FindByUserID_Call struct {
+	*mock.Call
+}
+
+// FindByUserID is a helper method to define mock.On call
+//   - userID []byte
+func (_e *MockService_Expecter) FindByUserID(userID interface{}) *MockService_FindByUserID_Call {
+	return &MockService_FindByUserID_Call{Call: _e.mock.On("FindByUserID", userID)}
+}
+
+func (_c *MockService_FindByUserID_Call) Run(run func(userID []byte)) *MockService_FindByUserID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 []byte
+		if args[0] != nil {
+			arg0 = args[0].([]byte)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MockService_FindByUserID_Call) Return(linkRows []model.LinkRow, err error) *MockService_FindByUserID_Call {
+	_c.Call.Return(linkRows, err)
+	return _c
+}
+
+func (_c *MockService_FindByUserID_Call) RunAndReturn(run func(userID []byte) ([]model.LinkRow, error)) *MockService_FindByUserID_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetByID provides a mock function for the type MockService
 func (_mock *MockService) GetByID(ID string) ([]byte, error) {
 	ret := _mock.Called(ID)

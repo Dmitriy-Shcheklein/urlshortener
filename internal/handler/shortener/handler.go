@@ -18,6 +18,7 @@ type Service interface {
 	GetByID(ID string) ([]byte, error)
 	CreateShort(originalURL []byte, userID []byte) ([]byte, error)
 	CreateMany(values []model.CreateManyBodyRaw, userID []byte) ([]model.CreateManyResponseRaw, error)
+	FindByUserID(userID []byte) ([]model.LinkRow, error)
 }
 
 type Config interface {
@@ -34,6 +35,10 @@ type CreateShortBody struct {
 }
 type CreateShortResponse struct {
 	Result string `json:"result"`
+}
+type FindByUserIDResponse struct {
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
 }
 
 func New(service Service, config Config) (*Handler, error) {
@@ -207,6 +212,29 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 	prepareResponse(writer, headers, http.StatusCreated, resp)
 }
 
+func (h *Handler) GetByUserID(w http.ResponseWriter, r *http.Request) {
+	userID, err := getUserID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	res, err := h.service.FindByUserID(userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var status int
+	if len(res) == 0 {
+		status = http.StatusNoContent
+	} else {
+		status = http.StatusOK
+	}
+	headers := map[string]string{"Content-Type": "application/json"}
+	h.prepareFindByUserIDResponse(w, r.Host, res, status, headers)
+}
+
 func (h *Handler) prepareRequest(host string, short []byte) []byte {
 	var result []byte
 	if len(h.config.GetBaseAddress()) != 0 {
@@ -220,6 +248,30 @@ func (h *Handler) prepareRequest(host string, short []byte) []byte {
 	}
 
 	return result
+}
+
+func (h *Handler) prepareFindByUserIDResponse(
+	w http.ResponseWriter, host string, res []model.LinkRow, status int, headers map[string]string,
+) {
+	var output []FindByUserIDResponse
+	if len(res) != 0 {
+		for _, value := range res {
+			shorten := h.prepareRequest(host, []byte(value.ShortURL))
+			output = append(
+				output, FindByUserIDResponse{
+					ShortURL:    string(shorten),
+					OriginalURL: value.OriginalURL,
+				},
+			)
+		}
+	}
+
+	resp, err := json.Marshal(output)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	prepareResponse(w, headers, status, resp)
 }
 
 func (h *Handler) prepareJSONResponse(
@@ -243,11 +295,13 @@ func prepareResponse(w http.ResponseWriter, headers map[string]string, statusCod
 		w.Header().Add(key, value)
 	}
 	w.WriteHeader(statusCode)
-	// #nosec G705
-	_, err := w.Write(body)
-	if err != nil {
-		http.Error(w, "Error while write body", http.StatusInternalServerError)
-		return
+	if len(body) != 0 {
+		// #nosec G705
+		_, err := w.Write(body)
+		if err != nil {
+			http.Error(w, "Error while write body", http.StatusInternalServerError)
+			return
+		}
 	}
 }
 

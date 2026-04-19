@@ -151,7 +151,7 @@ func TestCreateShort(t *testing.T) {
 		body = strings.NewReader(fullLink)
 		request = httptest.NewRequest(http.MethodGet, path, body)
 		request.Header.Set("Content-Type", "text/plain")
-		request = request.WithContext(context.WithValue(context.Background(), middlewares.UserIDKey, userID))
+		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
 		config = NewMockConfig(t)
@@ -293,7 +293,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 		body = strings.NewReader("{\"url\": \"https://practicum.yandex.ru\"}")
 		request = httptest.NewRequest(http.MethodPost, path, body)
 		request.Header.Set("Content-Type", "application/json")
-		request = request.WithContext(context.WithValue(context.Background(), middlewares.UserIDKey, userID))
+		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
 		config = NewMockConfig(t)
@@ -435,7 +435,7 @@ func TestCreateMany(t *testing.T) {
 		body = strings.NewReader("[{\"original_url\": \"https://practicum.yandex.ru\", \"correlation_id\": \"id\"}]")
 		request = httptest.NewRequest(http.MethodPost, path, body)
 		request.Header.Set("Content-Type", "application/json")
-		request = request.WithContext(context.WithValue(context.Background(), middlewares.UserIDKey, userID))
+		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
 		config = NewMockConfig(t)
@@ -537,6 +537,106 @@ func TestCreateMany(t *testing.T) {
 
 			assert.Equal(t, http.StatusBadRequest, writer.Code)
 			assert.Equal(t, "Failed to read body\n", writer.Body.String())
+		},
+	)
+}
+
+func TestHandler_GetByUserID(t *testing.T) {
+	var (
+		handler     *Handler
+		service     *MockService
+		config      *MockConfig
+		writer      *httptest.ResponseRecorder
+		request     *http.Request
+		path        string
+		userID      []byte
+		urls        []model.LinkRow
+		baseAddress []byte
+	)
+
+	setup := func(t *testing.T) {
+		userID = []byte("userID")
+		path = "test"
+		urls = []model.LinkRow{
+			{
+				ID:          "1",
+				ShortURL:    "short1",
+				OriginalURL: "original1",
+				UserID:      "user1",
+			},
+			{
+				ID:          "2",
+				ShortURL:    "short2",
+				OriginalURL: "original2",
+				UserID:      "user2",
+			},
+		}
+		baseAddress = []byte{}
+
+		request = httptest.NewRequest(http.MethodGet, "/"+path, nil)
+		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
+		writer = httptest.NewRecorder()
+		service = NewMockService(t)
+		config = NewMockConfig(t)
+		handler, _ = New(service, config)
+		logger.Logger = new(zerolog.Nop())
+	}
+
+	t.Run(
+		"Должен выполниться без ошибок", func(t *testing.T) {
+			setup(t)
+
+			service.EXPECT().FindByUserID(userID).Return(urls, nil)
+			config.EXPECT().GetBaseAddress().Return(baseAddress)
+
+			handler.GetByUserID(writer, request)
+
+			assert.Equal(
+				t,
+				"[{\"short_url\":\"http://example.com/short1\",\"original_url\":\"original1\"},{\"short_url\":\"http://example.com/short2\",\"original_url\":\"original2\"}]",
+				writer.Body.String(),
+			)
+			assert.Equal(t, http.StatusOK, writer.Code)
+			assert.Equal(t, "application/json", writer.Header().Get("Content-Type"))
+		},
+	)
+
+	t.Run(
+		"Ошибка получения идентификатора юзера", func(t *testing.T) {
+			setup(t)
+			request = httptest.NewRequest(http.MethodGet, "/"+path, nil)
+
+			handler.GetByUserID(writer, request)
+
+			assert.Equal(t, http.StatusInternalServerError, writer.Code)
+			assert.Equal(t, "error while getting UserID\n", writer.Body.String())
+		},
+	)
+
+	t.Run(
+		"Ошибка получения данных из сервиса", func(t *testing.T) {
+			setup(t)
+
+			testError := assert.AnError
+			service.EXPECT().FindByUserID(userID).Return(nil, testError)
+
+			handler.GetByUserID(writer, request)
+
+			assert.Equal(t, http.StatusInternalServerError, writer.Code)
+			assert.Equal(t, testError.Error()+"\n", writer.Body.String())
+		},
+	)
+
+	t.Run(
+		"Установлен статус 204", func(t *testing.T) {
+			setup(t)
+
+			service.EXPECT().FindByUserID(userID).Return([]model.LinkRow{}, nil)
+
+			handler.GetByUserID(writer, request)
+
+			assert.Equal(t, http.StatusNoContent, writer.Code)
+			assert.Equal(t, "text/plain; charset=utf-8", writer.Header().Get("Content-Type"))
 		},
 	)
 }
