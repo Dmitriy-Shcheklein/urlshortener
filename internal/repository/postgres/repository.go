@@ -131,7 +131,7 @@ func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	query := fmt.Sprintf("SELECT short_url, original_url from %s WHERE user_id = $1", "links")
+	query := fmt.Sprintf("SELECT id, short_url, original_url, user_id from %s WHERE user_id = $1", "links")
 
 	rows, err := r.pool.Query(ctx, query, string(userID))
 	if err != nil {

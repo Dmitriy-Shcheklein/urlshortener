@@ -225,15 +225,19 @@ func TestHealthcheckRepository(t *testing.T) {
 	t.Run(
 		"Тест метода FindByUserID", func(t *testing.T) {
 			userID := []byte("userID")
-			expectedQuery := "SELECT short_url, original_url from links WHERE user_id = $1"
+			expectedQuery := "SELECT id, short_url, original_url, user_id from links WHERE user_id = $1"
 			expectedRes := []model.LinkRow{
 				{
+					ID:          "id1",
 					OriginalURL: "original1",
 					ShortURL:    "short1",
+					UserID:      "userID",
 				},
 				{
+					ID:          "id2",
 					OriginalURL: "original2",
 					ShortURL:    "short2",
+					UserID:      "userID",
 				},
 			}
 			t.Run(
@@ -246,24 +250,30 @@ func TestHealthcheckRepository(t *testing.T) {
 
 					for i := 0; i < len(expectedRes); i++ {
 						mockPgxRows.EXPECT().FieldDescriptions().Return([]pgconn.FieldDescription{
+							{Name: "id"},
 							{Name: "short_url"},
 							{Name: "original_url"},
+							{Name: "user_id"},
 						}).Once()
 					}
 
 					mockPgxRows.EXPECT().Next().Return(true).Once()
-					mockPgxRows.EXPECT().Scan(mock.Anything, mock.Anything).Run(
+					mockPgxRows.EXPECT().Scan(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Run(
 						func(args ...any) {
-							*args[0].(*string) = "short1"
-							*args[1].(*string) = "original1"
+							*args[0].(*string) = "id1"
+							*args[1].(*string) = "short1"
+							*args[2].(*string) = "original1"
+							*args[3].(*string) = "userID"
 						},
 					).Return(nil).Once()
 
 					mockPgxRows.EXPECT().Next().Return(true).Once()
-					mockPgxRows.EXPECT().Scan(mock.Anything, mock.Anything).Run(
+					mockPgxRows.EXPECT().Scan(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Run(
 						func(args ...any) {
-							*args[0].(*string) = "short2"
-							*args[1].(*string) = "original2"
+							*args[0].(*string) = "id2"
+							*args[1].(*string) = "short2"
+							*args[2].(*string) = "original2"
+							*args[3].(*string) = "userID"
 						},
 					).Return(nil).Once()
 
@@ -302,12 +312,14 @@ func TestHealthcheckRepository(t *testing.T) {
 				).Return(mockPgxRows, nil)
 
 				mockPgxRows.EXPECT().FieldDescriptions().Return([]pgconn.FieldDescription{
+					{Name: "id"},
 					{Name: "short_url"},
 					{Name: "original_url"},
+					{Name: "user_id"},
 				}).Once()
 
 				mockPgxRows.EXPECT().Next().Return(true).Once()
-				mockPgxRows.EXPECT().Scan(mock.Anything, mock.Anything).Return(testError).Once()
+				mockPgxRows.EXPECT().Scan(mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(testError).Once()
 
 				mockPgxRows.EXPECT().Close().Return().Once()
 
