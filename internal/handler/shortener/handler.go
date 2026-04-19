@@ -3,6 +3,7 @@ package shortener
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -215,7 +216,7 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 func (h *Handler) GetByUserID(w http.ResponseWriter, r *http.Request) {
 	userID, err := getUserID(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
@@ -313,7 +314,10 @@ func prepareResponse(w http.ResponseWriter, headers map[string]string, statusCod
 func getUserID(r *http.Request) ([]byte, error) {
 	v, ok := r.Context().Value(middlewares.UserIDKey).([]byte)
 	if !ok {
-		return []byte{}, errors.New("error while getting UserID")
+		return nil, fmt.Errorf("user ID not found in context")
+	}
+	if len(v) == 0 {
+		return nil, fmt.Errorf("user ID is empty")
 	}
 	return v, nil
 }
