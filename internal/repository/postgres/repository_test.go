@@ -86,7 +86,7 @@ func TestHealthcheckRepository(t *testing.T) {
 				{ShortURL: "firstShort", OriginalURL: "firstOriginal"},
 				{ShortURL: "secondShort", OriginalURL: "secondOriginal"},
 			}
-			expectedQueryRaw := "INSERT INTO links (short_url, original_url, user_id) VALUES ('firstShort', 'firstOriginal', 'userID'::uuid), ('secondShort', 'secondOriginal', 'userID'::uuid)"
+			expectedQueryRaw := "INSERT INTO links (short_url, original_url, user_id) VALUES ('firstShort', 'firstOriginal', 'userID'), ('secondShort', 'secondOriginal', 'userID')"
 			t.Run(
 				"Должен выполниться без ошибок", func(t *testing.T) {
 					setup(t)
@@ -120,7 +120,7 @@ func TestHealthcheckRepository(t *testing.T) {
 			originalUrl := []byte("original")
 			shortUrl := []byte("short")
 			userID := []byte("userID")
-			expectedQueryRaw := "INSERT INTO links (short_url, original_url, user_id) VALUES ('short', 'original', 'userID'::uuid) ON CONFLICT (original_url) DO NOTHING"
+			expectedQueryRaw := "INSERT INTO links (short_url, original_url, user_id) VALUES ('short', 'original', 'userID') ON CONFLICT (original_url) DO NOTHING"
 			t.Run(
 				"Должен выполниться без ошибок", func(t *testing.T) {
 					setup(t)
@@ -220,7 +220,7 @@ func TestHealthcheckRepository(t *testing.T) {
 	t.Run(
 		"Тест метода FindByUserID", func(t *testing.T) {
 			userID := []byte("userID")
-			expectedQuery := "SELECT id, short_url, original_url, user_id from links WHERE user_id = 'userID'::uuid"
+			expectedQuery := "SELECT id, short_url, original_url, user_id from links WHERE user_id = 'userID'::varchar"
 			expectedRes := []model.LinkRow{
 				{
 					ID:          "id1",

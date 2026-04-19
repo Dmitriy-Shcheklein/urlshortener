@@ -65,7 +65,7 @@ func (r *Repository) Save(originalUrl []byte, shortUrl []byte, userID []byte) er
 	userIDStr := string(userID)
 
 	query := fmt.Sprintf(
-		"INSERT INTO %s (short_url, original_url, user_id) VALUES ('%s', '%s', '%s'::uuid) ON CONFLICT (original_url) DO NOTHING",
+		"INSERT INTO %s (short_url, original_url, user_id) VALUES ('%s', '%s', '%s') ON CONFLICT (original_url) DO NOTHING",
 		"links", string(shortUrl), string(originalUrl), userIDStr,
 	)
 
@@ -115,7 +115,7 @@ func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 
 	for _, item := range values {
 		valueRanges = append(
-			valueRanges, fmt.Sprintf("('%s', '%s', '%s'::uuid)", item.ShortURL, item.OriginalURL, userIDStr),
+			valueRanges, fmt.Sprintf("('%s', '%s', '%s')", item.ShortURL, item.OriginalURL, userIDStr),
 		)
 	}
 
@@ -135,7 +135,7 @@ func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	userIDStr := string(userID)
 
 	query := fmt.Sprintf(
-		"SELECT id, short_url, original_url, user_id from %s WHERE user_id = '%s'::uuid", "links", userIDStr,
+		"SELECT id, short_url, original_url, user_id from %s WHERE user_id = '%s'::varchar", "links", userIDStr,
 	)
 
 	rows, err := r.pool.Query(ctx, query)
