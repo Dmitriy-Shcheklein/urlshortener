@@ -19,6 +19,14 @@ type contextKey string
 
 const UserIDKey contextKey = "user_id"
 
+type InvalidUserFormatError struct {
+	message string
+}
+
+func (i *InvalidUserFormatError) Error() string {
+	return i.message
+}
+
 func Auth(h http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
@@ -34,6 +42,11 @@ func Auth(h http.Handler) http.Handler {
 			}
 
 			withCtx, err := verifyToken(r, cookie)
+			var invalidUserFormatErr *InvalidUserFormatError
+			if errors.As(err, &invalidUserFormatErr) {
+				http.Error(w, err.Error(), http.StatusUnauthorized)
+				return
+			}
 			if err != nil {
 				http.Error(w, fmt.Sprintf("error while verify cookie: %v", err), http.StatusInternalServerError)
 				return
@@ -67,14 +80,14 @@ func generateNewCookie() (*http.Cookie, []byte) {
 func verifyToken(r *http.Request, cookie *http.Cookie) (*http.Request, error) {
 	parts := strings.Split(cookie.Value, ".")
 	if len(parts) != 2 {
-		return r, fmt.Errorf("invalid cookie format")
+		return r, &InvalidUserFormatError{message: "invalid cookie format"}
 	}
 	encodedUserID := parts[0]
 	receivedSignature := parts[1]
 
 	userIDBytes, err := base64.URLEncoding.DecodeString(encodedUserID)
 	if err != nil {
-		return r, fmt.Errorf("invalid encoded userID: %w", err)
+		return r, &InvalidUserFormatError{message: "invalid encoded userID"}
 	}
 
 	h := hmac.New(sha256.New, secretKey)
