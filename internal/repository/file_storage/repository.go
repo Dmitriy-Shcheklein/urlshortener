@@ -2,6 +2,7 @@ package file_storage
 
 import (
 	"bufio"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"os"
@@ -141,21 +142,22 @@ func (r *Repository) Delete(shortLinks []string) error {
 		urlIndex[link] = struct{}{}
 	}
 
-	lines := make([]FileRow, 0)
+	lines := make([]model.LinkRow, 0)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		var value FileRow
+		var value model.LinkRow
 		if err = json.Unmarshal([]byte(line), &value); err != nil {
 			return err
 		}
+		lines = append(lines, value)
 	}
 
-	for _, line := range lines {
-		if _, ok := urlIndex[line.ShortURL]; ok {
-			line.IsDeleted = true
+	for i := range lines {
+		if _, ok := urlIndex[lines[i].ShortURL]; ok {
+			lines[i].IsDeleted = sql.NullBool{Bool: true, Valid: true}
 		}
 	}
 	if err = file.Close(); err != nil {
@@ -175,10 +177,11 @@ func (r *Repository) Delete(shortLinks []string) error {
 			log.Err(err).Msg("error while close file")
 		}
 	}()
-	encoder := json.NewEncoder(file)
-	if err = encoder.Encode(lines); err != nil {
-		return err
+	encoder := json.NewEncoder(newFile)
+	for _, line := range lines {
+		if err = encoder.Encode(line); err != nil {
+			return err
+		}
 	}
 	return nil
-
 }

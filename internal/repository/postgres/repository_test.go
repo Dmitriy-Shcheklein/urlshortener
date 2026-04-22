@@ -339,7 +339,6 @@ func TestHealthcheckRepository(t *testing.T) {
 
 	t.Run(
 		"Тест метода Delete", func(t *testing.T) {
-
 			urls := []string{"1", "2", "3"}
 
 			t.Run(
@@ -354,7 +353,6 @@ func TestHealthcheckRepository(t *testing.T) {
 					err := repository.Delete(urls)
 
 					require.NoError(t, err)
-
 				},
 			)
 

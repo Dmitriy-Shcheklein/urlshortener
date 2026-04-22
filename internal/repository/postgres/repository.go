@@ -155,7 +155,7 @@ func (r *Repository) Delete(shortLinks []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	query := fmt.Sprintf("UPDATE links SET is_deleted = true WHERE short_url = ANY($1)")
+	query := "UPDATE links SET is_deleted = true WHERE short_url = ANY($1)"
 
 	_, err := r.pool.Exec(ctx, query, shortLinks)
 	if err != nil {
