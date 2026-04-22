@@ -336,4 +336,43 @@ func TestHealthcheckRepository(t *testing.T) {
 			)
 		},
 	)
+
+	t.Run(
+		"Тест метода Delete", func(t *testing.T) {
+
+			urls := []string{"1", "2", "3"}
+
+			t.Run(
+				"Должен выполниться без ошибок", func(t *testing.T) {
+					setup(t)
+
+					mockPool.EXPECT().Exec(
+						mock.Anything, "UPDATE links SET is_deleted = true WHERE short_url = ANY($1)",
+						[]interface{}{[]string{"1", "2", "3"}},
+					).Return(pgconn.NewCommandTag("1"), nil)
+
+					err := repository.Delete(urls)
+
+					require.NoError(t, err)
+
+				},
+			)
+
+			t.Run(
+				"Ошибка при выполнении запроса", func(t *testing.T) {
+					setup(t)
+
+					testError := assert.AnError
+					mockPool.EXPECT().Exec(
+						mock.Anything, mock.Anything, mock.Anything,
+					).Return(pgconn.NewCommandTag("0"), testError)
+
+					err := repository.Delete(urls)
+
+					require.Error(t, err)
+					assert.Equal(t, testError, err)
+				},
+			)
+		},
+	)
 }

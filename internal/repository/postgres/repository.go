@@ -149,3 +149,17 @@ func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	}
 	return links, nil
 }
+
+func (r *Repository) Delete(shortLinks []string) error {
+	timeout := 5 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	query := fmt.Sprintf("UPDATE links SET is_deleted = true WHERE short_url = ANY($1)")
+
+	_, err := r.pool.Exec(ctx, query, shortLinks)
+	if err != nil {
+		return err
+	}
+	return nil
+}
