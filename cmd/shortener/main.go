@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -21,6 +22,8 @@ import (
 )
 
 func main() {
+	baseCancelCtx, cancelFunc := context.WithCancel(context.Background())
+
 	cfg, err := config.New()
 	if err != nil {
 		log.Fatalf("error while getting config: %s", err)
@@ -56,7 +59,8 @@ func main() {
 			log.Fatalf("error while bootstrap healthcheck handler: %s", err)
 		}
 	}
-	if err = bootstrap.InitShortener(cfg, dbPool, router); err != nil {
+	shutdownFuncs, err := bootstrap.InitShortener(baseCancelCtx, cfg, dbPool, router)
+	if err != nil {
 		log.Fatalf("error while create handlers: %s", err)
 	}
 
@@ -81,11 +85,28 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutting down server...")
+	cancelFunc()
 
+	shutdown(server, shutdownFuncs)
+
+	log.Println("Server exiting")
+}
+
+func shutdown(server *http.Server, shutdownFuncs []func()) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
-	if err = server.Shutdown(ctx); err != nil {
+	wg := sync.WaitGroup{}
+	if len(shutdownFuncs) != 0 {
+		for _, fn := range shutdownFuncs {
+			wg.Add(1)
+			go func(fn func()) {
+				defer wg.Done()
+				fn()
+			}(fn)
+		}
+	}
+	wg.Wait()
+	if err := server.Shutdown(ctx); err != nil {
 		log.Printf("Server forced to shutdown: %v", err)
 		if err = server.Close(); err != nil {
 			log.Printf("Server close error: %v", err)
@@ -93,6 +114,4 @@ func main() {
 	} else {
 		log.Println("Server stopped gracefully")
 	}
-
-	log.Println("Server exiting")
 }
