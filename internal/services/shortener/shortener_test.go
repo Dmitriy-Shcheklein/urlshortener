@@ -187,4 +187,36 @@ func TestService(t *testing.T) {
 			)
 		},
 	)
+
+	t.Run(
+		"Тест Delete", func(t *testing.T) {
+			links := []string{"1", "2"}
+
+			t.Run(
+				"Должен выполниться без ошибок", func(t *testing.T) {
+					setup(t)
+
+					repository.EXPECT().Delete(links, string(userID)).Return(nil)
+
+					err := service.Delete(links, string(userID))
+
+					require.NoError(t, err)
+				},
+			)
+
+			t.Run(
+				"Ошибка репозитория", func(t *testing.T) {
+					setup(t)
+
+					testError := assert.AnError
+					repository.EXPECT().Delete(mock.Anything, mock.Anything).Return(testError)
+
+					err := service.Delete(links, string(userID))
+
+					require.Error(t, err)
+					assert.Equal(t, testError, err)
+				},
+			)
+		},
+	)
 }

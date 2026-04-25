@@ -13,6 +13,7 @@ type LinkRepository interface {
 	Save(path []byte, short []byte, userID []byte) error
 	SaveMany(values []model.LinkRow, userID []byte) error
 	FindByUserID(userID []byte) ([]model.LinkRow, error)
+	Delete(in []*model.LinkToDelete) error
 }
 
 type Service struct {
@@ -63,6 +64,10 @@ func (s *Service) CreateMany(values []model.CreateManyBodyRaw, userID []byte) (
 
 func (s *Service) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	return s.linkRepository.FindByUserID(userID)
+}
+
+func (s *Service) Delete(in []*model.LinkToDelete) error {
+	return s.linkRepository.Delete(in)
 }
 
 func shortenURLCRC32(url []byte) []byte {

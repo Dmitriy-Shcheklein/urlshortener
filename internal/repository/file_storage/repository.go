@@ -131,7 +131,7 @@ func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	return out, nil
 }
 
-func (r *Repository) Delete(shortLinks []string) error {
+func (r *Repository) Delete(shortLinks []string, userID string) error {
 	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
@@ -157,6 +157,9 @@ func (r *Repository) Delete(shortLinks []string) error {
 
 	for i := range lines {
 		if _, ok := urlIndex[lines[i].ShortURL]; ok {
+			if lines[i].UserID != userID {
+				continue
+			}
 			lines[i].IsDeleted = sql.NullBool{Bool: true, Valid: true}
 		}
 	}
