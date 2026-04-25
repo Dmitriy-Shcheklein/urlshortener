@@ -37,16 +37,16 @@ func (_m *MockLinkRepository) EXPECT() *MockLinkRepository_Expecter {
 }
 
 // Delete provides a mock function for the type MockLinkRepository
-func (_mock *MockLinkRepository) Delete(shortLinks []string, userID string) error {
-	ret := _mock.Called(shortLinks, userID)
+func (_mock *MockLinkRepository) Delete(in []*model.LinkToDelete) error {
+	ret := _mock.Called(in)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Delete")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func([]string, string) error); ok {
-		r0 = returnFunc(shortLinks, userID)
+	if returnFunc, ok := ret.Get(0).(func([]*model.LinkToDelete) error); ok {
+		r0 = returnFunc(in)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -59,25 +59,19 @@ type MockLinkRepository_Delete_Call struct {
 }
 
 // Delete is a helper method to define mock.On call
-//   - shortLinks []string
-//   - userID string
-func (_e *MockLinkRepository_Expecter) Delete(shortLinks interface{}, userID interface{}) *MockLinkRepository_Delete_Call {
-	return &MockLinkRepository_Delete_Call{Call: _e.mock.On("Delete", shortLinks, userID)}
+//   - in []*model.LinkToDelete
+func (_e *MockLinkRepository_Expecter) Delete(in interface{}) *MockLinkRepository_Delete_Call {
+	return &MockLinkRepository_Delete_Call{Call: _e.mock.On("Delete", in)}
 }
 
-func (_c *MockLinkRepository_Delete_Call) Run(run func(shortLinks []string, userID string)) *MockLinkRepository_Delete_Call {
+func (_c *MockLinkRepository_Delete_Call) Run(run func(in []*model.LinkToDelete)) *MockLinkRepository_Delete_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 []string
+		var arg0 []*model.LinkToDelete
 		if args[0] != nil {
-			arg0 = args[0].([]string)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
+			arg0 = args[0].([]*model.LinkToDelete)
 		}
 		run(
 			arg0,
-			arg1,
 		)
 	})
 	return _c
@@ -88,7 +82,7 @@ func (_c *MockLinkRepository_Delete_Call) Return(err error) *MockLinkRepository_
 	return _c
 }
 
-func (_c *MockLinkRepository_Delete_Call) RunAndReturn(run func(shortLinks []string, userID string) error) *MockLinkRepository_Delete_Call {
+func (_c *MockLinkRepository_Delete_Call) RunAndReturn(run func(in []*model.LinkToDelete) error) *MockLinkRepository_Delete_Call {
 	_c.Call.Return(run)
 	return _c
 }

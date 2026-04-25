@@ -131,15 +131,19 @@ func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	return out, nil
 }
 
-func (r *Repository) Delete(shortLinks []string, userID string) error {
+func (r *Repository) Delete(in []*model.LinkToDelete) error {
+	if len(in) == 0 {
+		return nil
+	}
+
 	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
 	}
 
-	urlIndex := make(map[string]struct{})
-	for _, link := range shortLinks {
-		urlIndex[link] = struct{}{}
+	urlIndex := make(map[string]string)
+	for _, item := range in {
+		urlIndex[item.Link] = item.UserID
 	}
 
 	lines := make([]model.LinkRow, 0)
@@ -156,11 +160,10 @@ func (r *Repository) Delete(shortLinks []string, userID string) error {
 	}
 
 	for i := range lines {
-		if _, ok := urlIndex[lines[i].ShortURL]; ok {
-			if lines[i].UserID != userID {
-				continue
+		if savedUserID, ok := urlIndex[lines[i].ShortURL]; ok {
+			if lines[i].UserID == savedUserID {
+				lines[i].IsDeleted = sql.NullBool{Bool: true, Valid: true}
 			}
-			lines[i].IsDeleted = sql.NullBool{Bool: true, Valid: true}
 		}
 	}
 	if err = file.Close(); err != nil {

@@ -53,7 +53,6 @@ func (d *DeleteLinksWorker) AddToQueue(urls []string, userID string) {
 	go func() {
 		wg.Wait()
 		close(out)
-
 	}()
 
 	d.semaphore <- out
@@ -66,7 +65,6 @@ func (d *DeleteLinksWorker) Start(ctx context.Context) {
 	d.wg.Add(2)
 	go d.fanInLinks(ctxWithCancel)
 	go d.removeLinks(ctxWithCancel)
-
 }
 
 func (d *DeleteLinksWorker) fanInLinks(ctx context.Context) {
@@ -121,12 +119,10 @@ func (d *DeleteLinksWorker) removeLinks(ctx context.Context) {
 			acc = append(acc, value)
 			if len(acc) > 99 {
 				flush()
-
 			}
 		case <-ticker.C:
 			if len(acc) > 0 {
 				flush()
-
 			}
 		}
 	}

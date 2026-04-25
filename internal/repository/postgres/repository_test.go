@@ -347,11 +347,16 @@ func TestHealthcheckRepository(t *testing.T) {
 					setup(t)
 
 					mockPool.EXPECT().Exec(
-						mock.Anything, "UPDATE links SET is_deleted = true WHERE short_url = ANY($1) and user_id = $2",
-						[]interface{}{[]string{"1", "2", "3"}, userID},
+						mock.Anything,
+						"UPDATE links SET is_deleted = true FROM (VALUES ($1, $2), ($3, $4), ($5, $6)) AS data(short_url, user_id) WHERE links.short_url = data.short_url AND links.user_id = data.user_id",
+						[]interface{}{"1", userID, "2", userID, "3", userID},
 					).Return(pgconn.NewCommandTag("1"), nil)
 
-					err := repository.Delete(urls, userID)
+					linksToDelete := make([]*model.LinkToDelete, len(urls))
+					for i, url := range urls {
+						linksToDelete[i] = &model.LinkToDelete{Link: url, UserID: userID}
+					}
+					err := repository.Delete(linksToDelete)
 
 					require.NoError(t, err)
 				},
@@ -366,7 +371,11 @@ func TestHealthcheckRepository(t *testing.T) {
 						mock.Anything, mock.Anything, mock.Anything,
 					).Return(pgconn.NewCommandTag("0"), testError)
 
-					err := repository.Delete(urls, userID)
+					linksToDelete := make([]*model.LinkToDelete, len(urls))
+					for i, url := range urls {
+						linksToDelete[i] = &model.LinkToDelete{Link: url, UserID: userID}
+					}
+					err := repository.Delete(linksToDelete)
 
 					require.Error(t, err)
 					assert.Equal(t, testError, err)

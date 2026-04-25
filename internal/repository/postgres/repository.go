@@ -159,12 +159,7 @@ func (r *Repository) Delete(in []*model.LinkToDelete) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	query := `
-		UPDATE links 
-		SET is_deleted = true 
-		FROM (VALUES %s) AS data(short_url, user_id)
-		WHERE links.short_url = data.short_url AND links.user_id = data.user_id
-	`
+	query := "UPDATE links SET is_deleted = true FROM (VALUES %s) AS data(short_url, user_id) WHERE links.short_url = data.short_url AND links.user_id = data.user_id"
 
 	values := make([]string, len(in))
 	args := make([]interface{}, 0, len(in)*2)

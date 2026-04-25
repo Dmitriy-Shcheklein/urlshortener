@@ -139,7 +139,10 @@ func TestRepository_Delete(t *testing.T) {
 			err = repo.Save([]byte(link3.OriginalURL), []byte(link3.ShortURL), []byte(link3.UserID))
 			require.NoError(t, err)
 
-			err = repo.Delete([]string{"abc123", "def456"}, userID)
+			err = repo.Delete([]*model.LinkToDelete{
+				{Link: "abc123", UserID: userID},
+				{Link: "def456", UserID: userID},
+			})
 			require.NoError(t, err)
 
 			results, err := repo.FindByUserID([]byte(userID))
@@ -185,7 +188,10 @@ func TestRepository_Delete(t *testing.T) {
 			err = repo.Save([]byte(link1.OriginalURL), []byte(link1.ShortURL), []byte(link1.UserID))
 			require.NoError(t, err)
 
-			err = repo.Delete([]string{"nonexistent1", "nonexistent2"}, userID)
+			err = repo.Delete([]*model.LinkToDelete{
+				{Link: "nonexistent1", UserID: userID},
+				{Link: "nonexistent2", UserID: userID},
+			})
 			require.NoError(t, err)
 
 			results, err := repo.FindByUserID([]byte(userID))
@@ -224,7 +230,9 @@ func TestRepository_Delete(t *testing.T) {
 			err = repo.Save([]byte(link1.OriginalURL), []byte(link1.ShortURL), []byte(link1.UserID))
 			require.NoError(t, err)
 
-			err = repo.Delete([]string{"abc123"}, userID)
+			err = repo.Delete([]*model.LinkToDelete{
+				{Link: "abc123", UserID: userID},
+			})
 			require.NoError(t, err)
 
 			results, err := repo.FindByUserID([]byte(userID))
@@ -266,7 +274,9 @@ func TestRepository_Delete(t *testing.T) {
 			err = os.Chmod(tmpFile.Name(), 0o000)
 			require.NoError(t, err)
 
-			err = repo.Delete([]string{"abc123"}, userID)
+			err = repo.Delete([]*model.LinkToDelete{
+				{Link: "abc123", UserID: userID},
+			})
 			assert.Error(t, err)
 
 			err = os.Chmod(tmpFile.Name(), 0o600)

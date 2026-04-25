@@ -190,15 +190,18 @@ func TestService(t *testing.T) {
 
 	t.Run(
 		"Тест Delete", func(t *testing.T) {
-			links := []string{"1", "2"}
+			linksToDelete := []*model.LinkToDelete{
+				{Link: "1", UserID: string(userID)},
+				{Link: "2", UserID: string(userID)},
+			}
 
 			t.Run(
 				"Должен выполниться без ошибок", func(t *testing.T) {
 					setup(t)
 
-					repository.EXPECT().Delete(links, string(userID)).Return(nil)
+					repository.EXPECT().Delete(linksToDelete).Return(nil)
 
-					err := service.Delete(links, string(userID))
+					err := service.Delete(linksToDelete)
 
 					require.NoError(t, err)
 				},
@@ -209,9 +212,9 @@ func TestService(t *testing.T) {
 					setup(t)
 
 					testError := assert.AnError
-					repository.EXPECT().Delete(mock.Anything, mock.Anything).Return(testError)
+					repository.EXPECT().Delete(mock.Anything).Return(testError)
 
-					err := service.Delete(links, string(userID))
+					err := service.Delete(linksToDelete)
 
 					require.Error(t, err)
 					assert.Equal(t, testError, err)
