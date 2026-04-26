@@ -16,9 +16,13 @@ func TestFindByUserID(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "test-*.json")
 	require.NoError(t, err)
 	defer func() {
+		if err = tmpFile.Close(); err != nil {
+			t.Error(err)
+		}
 		if err = os.Remove(tmpFile.Name()); err != nil {
 			log.Err(err)
 		}
+
 	}()
 	cfg := &config.Config{
 		FileStoragePath: tmpFile.Name(),
@@ -72,6 +76,9 @@ func TestFindByUserID_Empty(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "test-*.json")
 	require.NoError(t, err)
 	defer func() {
+		if err = tmpFile.Close(); err != nil {
+			t.Error(err)
+		}
 		if err = os.Remove(tmpFile.Name()); err != nil {
 			log.Err(err)
 		}
@@ -96,6 +103,9 @@ func TestRepository_Delete(t *testing.T) {
 			tmpFile, err := os.CreateTemp("", "test-*.json")
 			require.NoError(t, err)
 			defer func() {
+				if err = tmpFile.Close(); err != nil {
+					t.Error(err)
+				}
 				if err = os.Remove(tmpFile.Name()); err != nil {
 					log.Err(err)
 				}
@@ -166,6 +176,9 @@ func TestRepository_Delete(t *testing.T) {
 			tmpFile, err := os.CreateTemp("", "test-*.json")
 			require.NoError(t, err)
 			defer func() {
+				if err = tmpFile.Close(); err != nil {
+					t.Error(err)
+				}
 				if err = os.Remove(tmpFile.Name()); err != nil {
 					log.Err(err)
 				}
@@ -210,6 +223,9 @@ func TestRepository_Delete(t *testing.T) {
 			tmpFile, err := os.CreateTemp("", "test-*.json")
 			require.NoError(t, err)
 			defer func() {
+				if err = tmpFile.Close(); err != nil {
+					t.Error(err)
+				}
 				if err = os.Remove(tmpFile.Name()); err != nil {
 					log.Err(err)
 				}
@@ -252,6 +268,9 @@ func TestRepository_Delete(t *testing.T) {
 			tmpFile, err := os.CreateTemp("", "test-*.json")
 			require.NoError(t, err)
 			defer func() {
+				if err = tmpFile.Close(); err != nil {
+					t.Error(err)
+				}
 				if err = os.Remove(tmpFile.Name()); err != nil {
 					log.Err(err)
 				}
