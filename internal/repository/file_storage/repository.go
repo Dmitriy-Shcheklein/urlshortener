@@ -33,7 +33,7 @@ func New(cfg *config.Config) *Repository {
 func (r *Repository) GetByID(id string) ([]byte, error) {
 	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY|os.O_CREATE, 0o600)
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 	defer func() {
 		if err = file.Close(); err != nil {
@@ -49,11 +49,13 @@ func (r *Repository) GetByID(id string) ([]byte, error) {
 			if err = json.Unmarshal([]byte(line), &raw); err != nil {
 				return []byte{}, err
 			}
-
+			if !raw.IsDeleted.Valid || !raw.IsDeleted.Bool {
+				continue
+			}
 			return []byte(raw.OriginalURL), nil
 		}
 	}
-	return []byte{}, errors.New("link by id not found")
+	return nil, errors.New("link by id not found")
 }
 
 func (r *Repository) Save(originalURL []byte, short []byte, userID []byte) error {

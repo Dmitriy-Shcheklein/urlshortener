@@ -181,7 +181,7 @@ func TestHealthcheckRepository(t *testing.T) {
 					setup(t)
 
 					mockPool.EXPECT().QueryRow(
-						mock.Anything, "SELECT original_url from links WHERE short_url = $1",
+						mock.Anything, "SELECT original_url from links WHERE short_url = $1 AND is_deleted != true",
 						[]interface{}{ID},
 					).Return(mockPgxRow)
 					mockPgxRow.EXPECT().Scan(mock.Anything).Run(
@@ -203,7 +203,7 @@ func TestHealthcheckRepository(t *testing.T) {
 
 					testError := assert.AnError
 					mockPool.EXPECT().QueryRow(
-						mock.Anything, "SELECT original_url from links WHERE short_url = $1",
+						mock.Anything, mock.Anything,
 						[]interface{}{ID},
 					).Return(mockPgxRow)
 					mockPgxRow.EXPECT().Scan(mock.Anything).Return(testError)

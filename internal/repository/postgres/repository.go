@@ -46,7 +46,7 @@ func (r *Repository) GetByID(ID string) ([]byte, error) {
 	defer cancel()
 
 	var originalURL string
-	query := fmt.Sprintf("SELECT original_url from %s WHERE short_url = $1", "links")
+	query := fmt.Sprintf("SELECT original_url from %s WHERE short_url = $1 AND is_deleted != true", "links")
 
 	err := r.pool.QueryRow(ctx, query, ID).Scan(&originalURL)
 	if err != nil {
