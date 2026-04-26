@@ -1,1 +1,1 @@
-ALTER TABLE links ADD COLUMN is_deleted BOOLEAN;
+ALTER TABLE links ADD COLUMN is_deleted BOOLEAN default false;

@@ -74,7 +74,7 @@ func (r *Repository) Save(originalUrl []byte, shortUrl []byte, userID []byte) er
 		return fmt.Errorf("insert failed: %w", err)
 	}
 	if res.RowsAffected() == 0 {
-		shortenFromDB, err := r.geeByOriginalURL(originalUrl)
+		shortenFromDB, err := r.getByOriginalURL(originalUrl)
 		if err != nil {
 			return err
 		}
@@ -83,7 +83,7 @@ func (r *Repository) Save(originalUrl []byte, shortUrl []byte, userID []byte) er
 	return nil
 }
 
-func (r *Repository) geeByOriginalURL(url []byte) ([]byte, error) {
+func (r *Repository) getByOriginalURL(url []byte) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
@@ -115,7 +115,8 @@ func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 
 	for _, item := range values {
 		valueRanges = append(
-			valueRanges, fmt.Sprintf("('%s', '%s', '%s')", item.ShortURL, item.OriginalURL, userIDStr),
+			valueRanges,
+			fmt.Sprintf("('%s', '%s', '%s')", item.ShortURL, item.OriginalURL, userIDStr),
 		)
 	}
 
