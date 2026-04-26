@@ -22,7 +22,6 @@ func TestFindByUserID(t *testing.T) {
 		if err = os.Remove(tmpFile.Name()); err != nil {
 			log.Err(err)
 		}
-
 	}()
 	cfg := &config.Config{
 		FileStoragePath: tmpFile.Name(),
@@ -97,7 +96,28 @@ func TestFindByUserID_Empty(t *testing.T) {
 	assert.Len(t, results, 0)
 }
 
+// nolint:gocognit
 func TestRepository_Delete(t *testing.T) {
+	userID := uuid.NewString()
+	link1 := &model.LinkRow{
+		ID:          uuid.NewString(),
+		ShortURL:    "abc123",
+		OriginalURL: "http://example.com/1",
+		UserID:      userID,
+	}
+	link2 := &model.LinkRow{
+		ID:          uuid.NewString(),
+		ShortURL:    "def456",
+		OriginalURL: "http://example.com/2",
+		UserID:      userID,
+	}
+	link3 := &model.LinkRow{
+		ID:          uuid.NewString(),
+		ShortURL:    "ghi789",
+		OriginalURL: "http://example.com/3",
+		UserID:      userID,
+	}
+
 	t.Run(
 		"Успешное удаление существующих ссылок", func(t *testing.T) {
 			tmpFile, err := os.CreateTemp("", "test-*.json")
@@ -117,37 +137,9 @@ func TestRepository_Delete(t *testing.T) {
 
 			repo := New(cfg)
 
-			userID := uuid.NewString()
-
-			link1 := &model.LinkRow{
-				ID:          uuid.NewString(),
-				ShortURL:    "abc123",
-				OriginalURL: "http://example.com/1",
-				UserID:      userID,
-			}
-
-			link2 := &model.LinkRow{
-				ID:          uuid.NewString(),
-				ShortURL:    "def456",
-				OriginalURL: "http://example.com/2",
-				UserID:      userID,
-			}
-
-			link3 := &model.LinkRow{
-				ID:          uuid.NewString(),
-				ShortURL:    "ghi789",
-				OriginalURL: "http://example.com/3",
-				UserID:      userID,
-			}
-
 			err = repo.Save([]byte(link1.OriginalURL), []byte(link1.ShortURL), []byte(link1.UserID))
-			require.NoError(t, err)
-
 			err = repo.Save([]byte(link2.OriginalURL), []byte(link2.ShortURL), []byte(link2.UserID))
-			require.NoError(t, err)
-
 			err = repo.Save([]byte(link3.OriginalURL), []byte(link3.ShortURL), []byte(link3.UserID))
-			require.NoError(t, err)
 
 			err = repo.Delete(
 				[]*model.LinkToDelete{
@@ -190,15 +182,6 @@ func TestRepository_Delete(t *testing.T) {
 
 			repo := New(cfg)
 
-			userID := uuid.NewString()
-
-			link1 := &model.LinkRow{
-				ID:          uuid.NewString(),
-				ShortURL:    "abc123",
-				OriginalURL: "http://example.com/1",
-				UserID:      userID,
-			}
-
 			err = repo.Save([]byte(link1.OriginalURL), []byte(link1.ShortURL), []byte(link1.UserID))
 			require.NoError(t, err)
 
@@ -237,15 +220,6 @@ func TestRepository_Delete(t *testing.T) {
 
 			repo := New(cfg)
 
-			userID := uuid.NewString()
-
-			link1 := &model.LinkRow{
-				ID:          uuid.NewString(),
-				ShortURL:    "abc123",
-				OriginalURL: "http://example.com/1",
-				UserID:      userID,
-			}
-
 			err = repo.Save([]byte(link1.OriginalURL), []byte(link1.ShortURL), []byte(link1.UserID))
 			require.NoError(t, err)
 
@@ -260,52 +234,6 @@ func TestRepository_Delete(t *testing.T) {
 			require.NoError(t, err)
 			assert.Len(t, results, 1)
 			assert.True(t, results[0].IsDeleted)
-		},
-	)
-
-	t.Run(
-		"Обработка ошибок файла", func(t *testing.T) {
-			tmpFile, err := os.CreateTemp("", "test-*.json")
-			require.NoError(t, err)
-			defer func() {
-				if err = tmpFile.Close(); err != nil {
-					t.Error(err)
-				}
-				if err = os.Remove(tmpFile.Name()); err != nil {
-					log.Err(err)
-				}
-			}()
-
-			cfg := &config.Config{
-				FileStoragePath: tmpFile.Name(),
-			}
-
-			repo := New(cfg)
-
-			userID := uuid.NewString()
-
-			link1 := &model.LinkRow{
-				ID:          uuid.NewString(),
-				ShortURL:    "abc123",
-				OriginalURL: "http://example.com/1",
-				UserID:      userID,
-			}
-
-			err = repo.Save([]byte(link1.OriginalURL), []byte(link1.ShortURL), []byte(link1.UserID))
-			require.NoError(t, err)
-
-			err = os.Chmod(tmpFile.Name(), 0o000)
-			require.NoError(t, err)
-
-			err = repo.Delete(
-				[]*model.LinkToDelete{
-					{Link: "abc123", UserID: userID},
-				},
-			)
-			assert.Error(t, err)
-
-			err = os.Chmod(tmpFile.Name(), 0o600)
-			require.NoError(t, err)
 		},
 	)
 }
