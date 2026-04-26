@@ -25,9 +25,14 @@ type Config interface {
 	GetBaseAddress() []byte
 }
 
+type DeleteWorker interface {
+	AddToQueue(urls []string, userID string)
+}
+
 type Handler struct {
-	service Service
-	config  Config
+	service      Service
+	config       Config
+	deleteWorker DeleteWorker
 }
 
 type CreateShortBody struct {
@@ -41,15 +46,18 @@ type FindByUserIDResponse struct {
 	OriginalURL string `json:"original_url"`
 }
 
-func New(service Service, config Config) (*Handler, error) {
+func New(service Service, config Config, deleteWorker DeleteWorker) (*Handler, error) {
 	if service == nil {
 		return &Handler{}, errors.New("handler service must be not nil")
 	}
 	if config == nil {
 		return &Handler{}, errors.New("handler config must be not nil")
 	}
+	if deleteWorker == nil {
+		return &Handler{}, errors.New("deleteWorker must be not nil")
+	}
 
-	return &Handler{service: service, config: config}, nil
+	return &Handler{service: service, config: config, deleteWorker: deleteWorker}, nil
 }
 
 func (h *Handler) GetByID(writer http.ResponseWriter, request *http.Request) {
@@ -213,25 +221,17 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 }
 
 func (h *Handler) GetByUserID(w http.ResponseWriter, r *http.Request) {
-	logger.Logger.Info().Str("handler", "GetByUserID").Msg("Entering handler")
-
 	userID, err := getUserID(r)
 	if err != nil {
-		logger.Logger.Error().Err(err).Str("handler", "GetByUserID").Msg("getUserID error")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	logger.Logger.Info().Str("userID", string(userID)).Str("handler", "GetByUserID").Msg("User ID found")
 
 	res, err := h.service.FindByUserID(userID)
 	if err != nil {
-		logger.Logger.Error().Err(err).Str("handler", "GetByUserID").Msg("service.FindByUserID error")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	logger.Logger.Info().Int("result_count", len(res)).Str("handler", "GetByUserID").Msg("Results found")
 
 	var status int
 	if len(res) == 0 {
@@ -241,6 +241,51 @@ func (h *Handler) GetByUserID(w http.ResponseWriter, r *http.Request) {
 	}
 	headers := map[string]string{"Content-Type": "application/json"}
 	h.prepareFindByUserIDResponse(w, r.Host, res, status, headers)
+}
+
+func (h *Handler) DeleteLinks(w http.ResponseWriter, r *http.Request) {
+	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
+		http.Error(w, "Invalid content-type", http.StatusBadRequest)
+		return
+	}
+	userID, err := getUserID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read body", http.StatusBadRequest)
+		return
+	}
+	defer func() {
+		if err = r.Body.Close(); err != nil {
+			logger.Logger.Error().Err(err).Msg("error while close body")
+		}
+	}()
+
+	var deserialized []string
+
+	err = json.Unmarshal(body, &deserialized)
+	if err != nil {
+		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+		return
+	}
+
+	if len(deserialized) == 0 {
+		http.Error(w, "empty body values", http.StatusBadRequest)
+		return
+	}
+	for i := range deserialized {
+		if len(deserialized[i]) == 0 {
+			http.Error(w, "Invalid url format", http.StatusBadRequest)
+			return
+		}
+	}
+	h.deleteWorker.AddToQueue(deserialized, string(userID))
+
+	prepareResponse(w, make(map[string]string), http.StatusAccepted, []byte{})
 }
 
 func (h *Handler) prepareRequest(host string, short []byte) []byte {

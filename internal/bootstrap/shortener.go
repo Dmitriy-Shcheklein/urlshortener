@@ -28,7 +28,7 @@ func InitShortener(ctx context.Context, cfg *config.Config, pool *pool.Pool, rou
 	svc := shService.New(repository)
 	deleteWorker := delete_links_worker.New(svc)
 
-	handler, err := shortener.New(svc, cfg)
+	handler, err := shortener.New(svc, cfg, deleteWorker)
 	if err != nil {
 		return nil, err
 	}
@@ -39,6 +39,7 @@ func InitShortener(ctx context.Context, cfg *config.Config, pool *pool.Pool, rou
 	router.Post("/api/shorten", handler.CreateFromJSONBody)
 	router.Post("/api/shorten/batch", handler.CreateMany)
 	router.Get("/api/user/urls", handler.GetByUserID)
+	router.Delete("/api/user/urls", handler.DeleteLinks)
 
 	return []func(){deleteWorker.Stop}, nil
 }

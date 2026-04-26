@@ -3,6 +3,7 @@ package delete_links_worker
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
@@ -14,88 +15,80 @@ type Service interface {
 }
 
 type DeleteLinksWorker struct {
-	semaphore  chan chan *model.LinkToDelete
-	mainQueue  chan *model.LinkToDelete
-	cancelFunc context.CancelFunc
-	service    Service
-	wg         sync.WaitGroup
+	mainQueue   chan *model.LinkToDelete
+	cancelFunc  context.CancelFunc
+	service     Service
+	wg          sync.WaitGroup
+	ctx         context.Context
+	inWg        sync.WaitGroup
+	stopOnce    sync.Once
+	initialized atomic.Bool
+	accMu       sync.Mutex
 }
 
 func New(service Service) *DeleteLinksWorker {
-	semLength := 10
-	semaphore := make(chan chan *model.LinkToDelete, semLength)
-	for range semLength {
-		semaphore <- make(chan *model.LinkToDelete)
+	worker := &DeleteLinksWorker{
+		service: service, mainQueue: make(chan *model.LinkToDelete),
 	}
 
-	return &DeleteLinksWorker{
-		semaphore: semaphore, service: service, mainQueue: make(chan *model.LinkToDelete, 1_000), wg: sync.WaitGroup{},
-	}
+	worker.initialized.Store(false)
+	return worker
 }
 
 func (d *DeleteLinksWorker) AddToQueue(urls []string, userID string) {
-	out := make(chan *model.LinkToDelete, len(urls))
-
-	wg := sync.WaitGroup{}
-
-	for _, link := range urls {
-		wg.Add(1)
-		go func(link string) {
-			defer wg.Done()
-			out <- &model.LinkToDelete{
-				UserID: userID,
-				Link:   link,
-			}
-		}(link)
-
+	if d.ctx == nil {
+		log.Error().Msg("ctx is nil")
+		return
 	}
 
+	d.inWg.Add(1)
 	go func() {
-		wg.Wait()
-		close(out)
+		defer d.inWg.Done()
+		for _, value := range urls {
+			select {
+			case <-d.ctx.Done():
+				return
+			case d.mainQueue <- &model.LinkToDelete{Link: value, UserID: userID}:
+			}
+		}
 	}()
-
-	d.semaphore <- out
 }
 
 func (d *DeleteLinksWorker) Start(ctx context.Context) {
-	ctxWithCancel, cancel := context.WithCancel(ctx)
-	d.cancelFunc = cancel
-
-	d.wg.Add(2)
-	go d.fanInLinks(ctxWithCancel)
-	go d.removeLinks(ctxWithCancel)
-}
-
-func (d *DeleteLinksWorker) fanInLinks(ctx context.Context) {
-	defer d.wg.Done()
-	defer close(d.mainQueue)
-
-	wg := sync.WaitGroup{}
-
-	for q := range d.semaphore {
-		wg.Add(1)
-		go func(in chan *model.LinkToDelete) {
-			defer wg.Done()
-			for v := range in {
-				select {
-				case <-ctx.Done():
-					return
-				case d.mainQueue <- v:
-				}
-			}
-		}(q)
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error().
+				Interface("panic", r).
+				Stack().
+				Msg("panic in removeLinks")
+			d.wg.Done()
+		}
+	}()
+	if d.initialized.Load() {
+		return
 	}
-	wg.Wait()
+
+	ctxWithCancel, cancel := context.WithCancel(ctx)
+	d.ctx = ctxWithCancel
+	d.cancelFunc = func() {
+		cancel()
+	}
+
+	d.wg.Add(1)
+	go d.removeLinks()
+	d.initialized.Store(true)
 }
 
-func (d *DeleteLinksWorker) removeLinks(ctx context.Context) {
+func (d *DeleteLinksWorker) removeLinks() {
 	defer d.wg.Done()
 
 	ticker := time.NewTicker(time.Second)
+
 	acc := make([]*model.LinkToDelete, 0)
 
 	flush := func() {
+		d.accMu.Lock()
+		defer d.accMu.Unlock()
 		if len(acc) == 0 {
 			return
 		}
@@ -108,15 +101,16 @@ func (d *DeleteLinksWorker) removeLinks(ctx context.Context) {
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-d.ctx.Done():
 			flush()
 			return
 		case value, ok := <-d.mainQueue:
+
 			if !ok {
 				flush()
 				return
 			}
-			acc = append(acc, value)
+			d.addToAcc(&acc, value)
 			if len(acc) > 99 {
 				flush()
 			}
@@ -128,10 +122,17 @@ func (d *DeleteLinksWorker) removeLinks(ctx context.Context) {
 	}
 }
 
+func (d *DeleteLinksWorker) addToAcc(acc *[]*model.LinkToDelete, val *model.LinkToDelete) {
+	d.accMu.Lock()
+	*acc = append(*acc, val)
+	d.accMu.Unlock()
+}
+
 func (d *DeleteLinksWorker) Stop() {
 	if d.cancelFunc != nil {
 		d.cancelFunc()
 	}
+	d.inWg.Wait()
 	d.wg.Wait()
-	close(d.semaphore)
+	d.stopOnce.Do(func() { close(d.mainQueue) })
 }

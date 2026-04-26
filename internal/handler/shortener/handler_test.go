@@ -28,7 +28,9 @@ func (r *errorReader) Read(_ []byte) (int, error) {
 func TestNew(t *testing.T) {
 	service := NewMockService(t)
 	config := NewMockConfig(t)
-	handler, _ := New(service, config)
+	deleteWorker := NewMockDeleteWorker(t)
+
+	handler, _ := New(service, config, deleteWorker)
 	assert.NotNil(t, handler, "Указатель на обработчик не должен быть nil")
 	assert.NotNil(t, handler.service, "Указатель на сервис не должен быть nil")
 }
@@ -36,27 +38,34 @@ func TestNew(t *testing.T) {
 func TestNewErrors(t *testing.T) {
 	t.Run(
 		"Ошибка, сервис не инициализирован", func(t *testing.T) {
-			_, err := New(nil, NewMockConfig(t))
+			_, err := New(nil, NewMockConfig(t), NewMockDeleteWorker(t))
 			assert.Equal(t, errors.New("handler service must be not nil"), err)
 		},
 	)
 	t.Run(
 		"Ошибка, конфиг не инициализирован", func(t *testing.T) {
-			_, err := New(NewMockService(t), nil)
+			_, err := New(NewMockService(t), nil, NewMockDeleteWorker(t))
 			assert.Equal(t, errors.New("handler config must be not nil"), err)
+		},
+	)
+	t.Run(
+		"Ошибка, deleteWorker не инициализирован", func(t *testing.T) {
+			_, err := New(NewMockService(t), NewMockConfig(t), nil)
+			assert.Equal(t, errors.New("deleteWorker must be not nil"), err)
 		},
 	)
 }
 
 func TestGetById(t *testing.T) {
 	var (
-		handler  *Handler
-		service  *MockService
-		config   *MockConfig
-		writer   *httptest.ResponseRecorder
-		request  *http.Request
-		fullLink []byte
-		path     string
+		handler      *Handler
+		service      *MockService
+		config       *MockConfig
+		writer       *httptest.ResponseRecorder
+		request      *http.Request
+		fullLink     []byte
+		path         string
+		deleteWorker *MockDeleteWorker
 	)
 
 	setup := func(t *testing.T) {
@@ -65,8 +74,9 @@ func TestGetById(t *testing.T) {
 		request = httptest.NewRequest(http.MethodGet, "/"+path, nil)
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
+		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
-		handler, _ = New(service, config)
+		handler, _ = New(service, config, deleteWorker)
 		logger.Logger = new(zerolog.Nop())
 	}
 
@@ -128,17 +138,18 @@ func TestGetById(t *testing.T) {
 
 func TestCreateShort(t *testing.T) {
 	var (
-		handler     *Handler
-		service     *MockService
-		config      *MockConfig
-		writer      *httptest.ResponseRecorder
-		request     *http.Request
-		fullLink    string
-		path        string
-		body        io.Reader
-		shortLink   []byte
-		baseAddress []byte
-		userID      []byte
+		handler      *Handler
+		service      *MockService
+		deleteWorker *MockDeleteWorker
+		config       *MockConfig
+		writer       *httptest.ResponseRecorder
+		request      *http.Request
+		fullLink     string
+		path         string
+		body         io.Reader
+		shortLink    []byte
+		baseAddress  []byte
+		userID       []byte
 	)
 
 	logger.InitLogger(zerolog.Disabled)
@@ -154,9 +165,10 @@ func TestCreateShort(t *testing.T) {
 		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
+		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
 
-		handler, _ = New(service, config)
+		handler, _ = New(service, config, deleteWorker)
 	}
 
 	t.Run(
@@ -272,17 +284,18 @@ func TestCreateShort(t *testing.T) {
 
 func TestCreateFromJSONBody(t *testing.T) {
 	var (
-		handler     *Handler
-		service     *MockService
-		config      *MockConfig
-		writer      *httptest.ResponseRecorder
-		request     *http.Request
-		fullLink    string
-		path        string
-		body        io.Reader
-		shortLink   []byte
-		baseAddress []byte
-		userID      []byte
+		handler      *Handler
+		service      *MockService
+		deleteWorker *MockDeleteWorker
+		config       *MockConfig
+		writer       *httptest.ResponseRecorder
+		request      *http.Request
+		fullLink     string
+		path         string
+		body         io.Reader
+		shortLink    []byte
+		baseAddress  []byte
+		userID       []byte
 	)
 
 	setup := func(t *testing.T) {
@@ -296,9 +309,10 @@ func TestCreateFromJSONBody(t *testing.T) {
 		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
+		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
 
-		handler, _ = New(service, config)
+		handler, _ = New(service, config, deleteWorker)
 	}
 
 	t.Run(
@@ -414,17 +428,18 @@ func TestCreateFromJSONBody(t *testing.T) {
 
 func TestCreateMany(t *testing.T) {
 	var (
-		handler     *Handler
-		service     *MockService
-		config      *MockConfig
-		writer      *httptest.ResponseRecorder
-		request     *http.Request
-		svcIncoming []model.CreateManyBodyRaw
-		svcResult   []model.CreateManyResponseRaw
-		path        string
-		body        io.Reader
-		baseAddress []byte
-		userID      []byte
+		handler      *Handler
+		service      *MockService
+		deleteWorker *MockDeleteWorker
+		config       *MockConfig
+		writer       *httptest.ResponseRecorder
+		request      *http.Request
+		svcIncoming  []model.CreateManyBodyRaw
+		svcResult    []model.CreateManyResponseRaw
+		path         string
+		body         io.Reader
+		baseAddress  []byte
+		userID       []byte
 	)
 
 	setup := func(t *testing.T) {
@@ -438,9 +453,10 @@ func TestCreateMany(t *testing.T) {
 		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
+		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
 
-		handler, _ = New(service, config)
+		handler, _ = New(service, config, deleteWorker)
 		logger.Logger = new(zerolog.Nop())
 	}
 
@@ -543,15 +559,16 @@ func TestCreateMany(t *testing.T) {
 
 func TestHandler_GetByUserID(t *testing.T) {
 	var (
-		handler     *Handler
-		service     *MockService
-		config      *MockConfig
-		writer      *httptest.ResponseRecorder
-		request     *http.Request
-		path        string
-		userID      []byte
-		urls        []model.LinkRow
-		baseAddress []byte
+		handler      *Handler
+		service      *MockService
+		deleteWorker *MockDeleteWorker
+		config       *MockConfig
+		writer       *httptest.ResponseRecorder
+		request      *http.Request
+		path         string
+		userID       []byte
+		urls         []model.LinkRow
+		baseAddress  []byte
 	)
 
 	setup := func(t *testing.T) {
@@ -577,8 +594,9 @@ func TestHandler_GetByUserID(t *testing.T) {
 		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
+		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
-		handler, _ = New(service, config)
+		handler, _ = New(service, config, deleteWorker)
 		logger.Logger = new(zerolog.Nop())
 	}
 
@@ -636,6 +654,103 @@ func TestHandler_GetByUserID(t *testing.T) {
 			handler.GetByUserID(writer, request)
 
 			assert.Equal(t, http.StatusNoContent, writer.Code)
+		},
+	)
+}
+
+func TestHandler_DeleteLinks(t *testing.T) {
+	var (
+		handler      *Handler
+		service      *MockService
+		deleteWorker *MockDeleteWorker
+		config       *MockConfig
+		writer       *httptest.ResponseRecorder
+		request      *http.Request
+		userID       []byte
+		urls         []string
+		path         string
+	)
+
+	setup := func(t *testing.T) {
+		userID = []byte("userID")
+		urls = []string{
+			"1", "2", "3",
+		}
+		path = "test"
+
+		request = httptest.NewRequest(http.MethodDelete, "/"+path, strings.NewReader("[\"1\",\"2\",\"3\"]"))
+		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
+		request.Header.Set("Content-Type", "application/json")
+		writer = httptest.NewRecorder()
+		deleteWorker = NewMockDeleteWorker(t)
+		service = NewMockService(t)
+		config = NewMockConfig(t)
+		handler, _ = New(service, config, deleteWorker)
+		logger.Logger = new(zerolog.Nop())
+	}
+
+	t.Run(
+		"Должен выполниться без ошибок", func(t *testing.T) {
+			setup(t)
+
+			deleteWorker.EXPECT().AddToQueue(urls, string(userID)).Return()
+
+			handler.DeleteLinks(writer, request)
+
+			assert.Equal(t, http.StatusAccepted, writer.Code)
+		},
+	)
+
+	t.Run(
+		"Ошибка получения идентификатора юзера", func(t *testing.T) {
+			setup(t)
+			request = httptest.NewRequest(http.MethodDelete, "/"+path, nil)
+			request.Header.Set("Content-Type", "application/json")
+
+			handler.DeleteLinks(writer, request)
+
+			assert.Equal(t, http.StatusInternalServerError, writer.Code)
+			assert.Equal(t, "error while getting UserID\n", writer.Body.String())
+		},
+	)
+
+	t.Run(
+		"Ошибка, некорректный content type", func(t *testing.T) {
+			setup(t)
+			request = httptest.NewRequest(http.MethodDelete, "/"+path, nil)
+
+			handler.DeleteLinks(writer, request)
+
+			assert.Equal(t, http.StatusBadRequest, writer.Code)
+			assert.Equal(t, "Invalid content-type\n", writer.Body.String())
+		},
+	)
+
+	t.Run(
+		"Ошибка, пустое тело запрос", func(t *testing.T) {
+			setup(t)
+			request = httptest.NewRequest(http.MethodDelete, "/"+path, strings.NewReader("[]"))
+			request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
+			request.Header.Set("Content-Type", "application/json")
+
+			handler.DeleteLinks(writer, request)
+
+			assert.Equal(t, http.StatusBadRequest, writer.Code)
+			assert.Equal(t, "empty body values\n", writer.Body.String())
+		},
+	)
+
+	t.Run(
+		"Ошибка, невалидный JSON", func(t *testing.T) {
+			setup(t)
+			request = httptest.NewRequest(http.MethodDelete, "/"+path, strings.NewReader("[ads: 1]"))
+			request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
+			request.Header.Set("Content-Type", "application/json")
+
+			handler.DeleteLinks(writer, request)
+
+			assert.Equal(t, http.StatusBadRequest, writer.Code)
+			assert.Equal(t, "Invalid JSON format\n", writer.Body.String())
 		},
 	)
 }
