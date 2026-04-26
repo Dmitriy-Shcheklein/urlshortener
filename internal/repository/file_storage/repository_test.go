@@ -29,21 +29,21 @@ func TestFindByUserID(t *testing.T) {
 	userID1 := uuid.NewString()
 	userID2 := uuid.NewString()
 
-	link1 := &model.DbLinkRow{
+	link1 := &model.LinkRow{
 		ID:          uuid.NewString(),
 		ShortURL:    "abc123",
 		OriginalURL: "http://example.com/1",
 		UserID:      userID1,
 	}
 
-	link2 := &model.DbLinkRow{
+	link2 := &model.LinkRow{
 		ID:          uuid.NewString(),
 		ShortURL:    "def456",
 		OriginalURL: "http://example.com/2",
 		UserID:      userID1,
 	}
 
-	link3 := &model.DbLinkRow{
+	link3 := &model.LinkRow{
 		ID:          uuid.NewString(),
 		ShortURL:    "ghi789",
 		OriginalURL: "http://example.com/3",
@@ -109,21 +109,21 @@ func TestRepository_Delete(t *testing.T) {
 
 			userID := uuid.NewString()
 
-			link1 := &model.DbLinkRow{
+			link1 := &model.LinkRow{
 				ID:          uuid.NewString(),
 				ShortURL:    "abc123",
 				OriginalURL: "http://example.com/1",
 				UserID:      userID,
 			}
 
-			link2 := &model.DbLinkRow{
+			link2 := &model.LinkRow{
 				ID:          uuid.NewString(),
 				ShortURL:    "def456",
 				OriginalURL: "http://example.com/2",
 				UserID:      userID,
 			}
 
-			link3 := &model.DbLinkRow{
+			link3 := &model.LinkRow{
 				ID:          uuid.NewString(),
 				ShortURL:    "ghi789",
 				OriginalURL: "http://example.com/3",
@@ -139,10 +139,12 @@ func TestRepository_Delete(t *testing.T) {
 			err = repo.Save([]byte(link3.OriginalURL), []byte(link3.ShortURL), []byte(link3.UserID))
 			require.NoError(t, err)
 
-			err = repo.Delete([]*model.LinkToDelete{
-				{Link: "abc123", UserID: userID},
-				{Link: "def456", UserID: userID},
-			})
+			err = repo.Delete(
+				[]*model.LinkToDelete{
+					{Link: "abc123", UserID: userID},
+					{Link: "def456", UserID: userID},
+				},
+			)
 			require.NoError(t, err)
 
 			results, err := repo.FindByUserID([]byte(userID))
@@ -151,10 +153,9 @@ func TestRepository_Delete(t *testing.T) {
 
 			for _, result := range results {
 				if result.ShortURL == "abc123" || result.ShortURL == "def456" {
-					assert.True(t, result.IsDeleted.Valid)
-					assert.True(t, result.IsDeleted.Bool)
+					assert.True(t, result.IsDeleted)
 				} else {
-					assert.False(t, result.IsDeleted.Valid)
+					assert.False(t, result.IsDeleted)
 				}
 			}
 		},
@@ -178,7 +179,7 @@ func TestRepository_Delete(t *testing.T) {
 
 			userID := uuid.NewString()
 
-			link1 := &model.DbLinkRow{
+			link1 := &model.LinkRow{
 				ID:          uuid.NewString(),
 				ShortURL:    "abc123",
 				OriginalURL: "http://example.com/1",
@@ -188,17 +189,19 @@ func TestRepository_Delete(t *testing.T) {
 			err = repo.Save([]byte(link1.OriginalURL), []byte(link1.ShortURL), []byte(link1.UserID))
 			require.NoError(t, err)
 
-			err = repo.Delete([]*model.LinkToDelete{
-				{Link: "nonexistent1", UserID: userID},
-				{Link: "nonexistent2", UserID: userID},
-			})
+			err = repo.Delete(
+				[]*model.LinkToDelete{
+					{Link: "nonexistent1", UserID: userID},
+					{Link: "nonexistent2", UserID: userID},
+				},
+			)
 			require.NoError(t, err)
 
 			results, err := repo.FindByUserID([]byte(userID))
 			require.NoError(t, err)
 			assert.Len(t, results, 1)
 
-			assert.False(t, results[0].IsDeleted.Valid)
+			assert.False(t, results[0].IsDeleted)
 		},
 	)
 
@@ -220,7 +223,7 @@ func TestRepository_Delete(t *testing.T) {
 
 			userID := uuid.NewString()
 
-			link1 := &model.DbLinkRow{
+			link1 := &model.LinkRow{
 				ID:          uuid.NewString(),
 				ShortURL:    "abc123",
 				OriginalURL: "http://example.com/1",
@@ -230,16 +233,17 @@ func TestRepository_Delete(t *testing.T) {
 			err = repo.Save([]byte(link1.OriginalURL), []byte(link1.ShortURL), []byte(link1.UserID))
 			require.NoError(t, err)
 
-			err = repo.Delete([]*model.LinkToDelete{
-				{Link: "abc123", UserID: userID},
-			})
+			err = repo.Delete(
+				[]*model.LinkToDelete{
+					{Link: "abc123", UserID: userID},
+				},
+			)
 			require.NoError(t, err)
 
 			results, err := repo.FindByUserID([]byte(userID))
 			require.NoError(t, err)
 			assert.Len(t, results, 1)
-			assert.True(t, results[0].IsDeleted.Valid)
-			assert.True(t, results[0].IsDeleted.Bool)
+			assert.True(t, results[0].IsDeleted)
 		},
 	)
 
@@ -261,7 +265,7 @@ func TestRepository_Delete(t *testing.T) {
 
 			userID := uuid.NewString()
 
-			link1 := &model.DbLinkRow{
+			link1 := &model.LinkRow{
 				ID:          uuid.NewString(),
 				ShortURL:    "abc123",
 				OriginalURL: "http://example.com/1",
@@ -274,9 +278,11 @@ func TestRepository_Delete(t *testing.T) {
 			err = os.Chmod(tmpFile.Name(), 0o000)
 			require.NoError(t, err)
 
-			err = repo.Delete([]*model.LinkToDelete{
-				{Link: "abc123", UserID: userID},
-			})
+			err = repo.Delete(
+				[]*model.LinkToDelete{
+					{Link: "abc123", UserID: userID},
+				},
+			)
 			assert.Error(t, err)
 
 			err = os.Chmod(tmpFile.Name(), 0o600)

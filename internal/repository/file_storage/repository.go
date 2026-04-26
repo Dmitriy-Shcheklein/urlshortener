@@ -2,7 +2,6 @@ package file_storage
 
 import (
 	"bufio"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"os"
@@ -13,14 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
-
-type FileRow struct {
-	ID          string `json:"id" db:"id"`
-	ShortURL    string `json:"short_url" db:"short_url"`
-	OriginalURL string `json:"original_url" db:"original_url"`
-	UserID      string `json:"user_id" db:"user_id"`
-	IsDeleted   bool   `json:"is_deleted"`
-}
 
 type Repository struct {
 	cfg *config.Config
@@ -49,10 +40,7 @@ func (r *Repository) GetByID(id string) ([]byte, error) {
 			if err = json.Unmarshal([]byte(line), &raw); err != nil {
 				return []byte{}, err
 			}
-			if raw.IsDeleted == nil {
-				continue
-			}
-			if *raw.IsDeleted {
+			if raw.IsDeleted {
 				continue
 			}
 			return []byte(raw.OriginalURL), nil
@@ -62,7 +50,7 @@ func (r *Repository) GetByID(id string) ([]byte, error) {
 }
 
 func (r *Repository) Save(originalURL []byte, short []byte, userID []byte) error {
-	fileRaw := &model.DbLinkRow{
+	fileRaw := &model.LinkRow{
 		OriginalURL: string(originalURL),
 		ShortURL:    string(short),
 		ID:          uuid.NewString(),
@@ -85,7 +73,7 @@ func (r *Repository) Save(originalURL []byte, short []byte, userID []byte) error
 	return nil
 }
 
-func (r *Repository) SaveMany(values []model.DbLinkRow, userID []byte) error {
+func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
 	if err != nil {
 		return err
@@ -95,7 +83,7 @@ func (r *Repository) SaveMany(values []model.DbLinkRow, userID []byte) error {
 			log.Err(err).Msg("error while close file")
 		}
 	}()
-	raws := make([]model.DbLinkRow, len(values))
+	raws := make([]model.LinkRow, len(values))
 	for i := range values {
 		raws[i].ID = uuid.NewString()
 		raws[i].ShortURL = values[i].ShortURL
@@ -109,23 +97,23 @@ func (r *Repository) SaveMany(values []model.DbLinkRow, userID []byte) error {
 	return nil
 }
 
-func (r *Repository) FindByUserID(userID []byte) ([]model.DbLinkRow, error) {
+func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY|os.O_CREATE, 0o600)
 	if err != nil {
-		return []model.DbLinkRow{}, err
+		return []model.LinkRow{}, err
 	}
 	defer func() {
 		if err = file.Close(); err != nil {
 			log.Err(err).Msg("error while close file")
 		}
 	}()
-	out := make([]model.DbLinkRow, 0)
+	out := make([]model.LinkRow, 0)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.Contains(line, string(userID)) {
-			var raw model.DbLinkRow
+			var raw model.LinkRow
 
 			if err = json.Unmarshal([]byte(line), &raw); err != nil {
 				return out, err
@@ -151,13 +139,13 @@ func (r *Repository) Delete(in []*model.LinkToDelete) error {
 		urlIndex[item.Link] = item.UserID
 	}
 
-	lines := make([]model.DbLinkRow, 0)
+	lines := make([]model.LinkRow, 0)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		var value model.DbLinkRow
+		var value model.LinkRow
 		if err = json.Unmarshal([]byte(line), &value); err != nil {
 			return err
 		}
@@ -167,7 +155,7 @@ func (r *Repository) Delete(in []*model.LinkToDelete) error {
 	for i := range lines {
 		if savedUserID, ok := urlIndex[lines[i].ShortURL]; ok {
 			if lines[i].UserID == savedUserID {
-				lines[i].IsDeleted = sql.NullBool{Bool: true, Valid: true}
+				lines[i].IsDeleted = true
 			}
 		}
 	}

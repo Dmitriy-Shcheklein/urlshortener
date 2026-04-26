@@ -11,8 +11,8 @@ import (
 type LinkRepository interface {
 	GetByID(ID string) ([]byte, error)
 	Save(path []byte, short []byte, userID []byte) error
-	SaveMany(values []model.DbLinkRow, userID []byte) error
-	FindByUserID(userID []byte) ([]model.DbLinkRow, error)
+	SaveMany(values []model.LinkRow, userID []byte) error
+	FindByUserID(userID []byte) ([]model.LinkRow, error)
 	Delete(in []*model.LinkToDelete) error
 }
 
@@ -52,7 +52,7 @@ func (s *Service) CreateMany(values []model.CreateManyBodyRaw, userID []byte) (
 		shorts[i].CorrelationID = values[i].CorrelationID
 	}
 
-	payload := make([]model.DbLinkRow, len(values))
+	payload := make([]model.LinkRow, len(values))
 	for i := range values {
 		payload[i].OriginalURL = values[i].OriginalURL
 		payload[i].ShortURL = shorts[i].ShortURL
@@ -62,7 +62,7 @@ func (s *Service) CreateMany(values []model.CreateManyBodyRaw, userID []byte) (
 	return shorts, err
 }
 
-func (s *Service) FindByUserID(userID []byte) ([]model.DbLinkRow, error) {
+func (s *Service) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	return s.linkRepository.FindByUserID(userID)
 }
 

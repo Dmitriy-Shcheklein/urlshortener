@@ -117,7 +117,7 @@ func TestService(t *testing.T) {
 
 					repository.EXPECT().SaveMany(
 						mock.MatchedBy(
-							func(value []model.DbLinkRow) bool {
+							func(value []model.LinkRow) bool {
 								return value[0].OriginalURL == values[0].OriginalURL &&
 									value[1].OriginalURL == values[1].OriginalURL
 							},
@@ -151,7 +151,7 @@ func TestService(t *testing.T) {
 	t.Run(
 		"Тест FindByUserID", func(t *testing.T) {
 			ID := []byte("ID")
-			result := []model.DbLinkRow{
+			result := []model.LinkRow{
 				{
 					UserID:      "id",
 					OriginalURL: "original",

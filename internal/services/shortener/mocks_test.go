@@ -88,23 +88,23 @@ func (_c *MockLinkRepository_Delete_Call) RunAndReturn(run func(in []*model.Link
 }
 
 // FindByUserID provides a mock function for the type MockLinkRepository
-func (_mock *MockLinkRepository) FindByUserID(userID []byte) ([]model.DbLinkRow, error) {
+func (_mock *MockLinkRepository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	ret := _mock.Called(userID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindByUserID")
 	}
 
-	var r0 []model.DbLinkRow
+	var r0 []model.LinkRow
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func([]byte) ([]model.DbLinkRow, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func([]byte) ([]model.LinkRow, error)); ok {
 		return returnFunc(userID)
 	}
-	if returnFunc, ok := ret.Get(0).(func([]byte) []model.DbLinkRow); ok {
+	if returnFunc, ok := ret.Get(0).(func([]byte) []model.LinkRow); ok {
 		r0 = returnFunc(userID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]model.DbLinkRow)
+			r0 = ret.Get(0).([]model.LinkRow)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func([]byte) error); ok {
@@ -139,12 +139,12 @@ func (_c *MockLinkRepository_FindByUserID_Call) Run(run func(userID []byte)) *Mo
 	return _c
 }
 
-func (_c *MockLinkRepository_FindByUserID_Call) Return(linkRows []model.DbLinkRow, err error) *MockLinkRepository_FindByUserID_Call {
+func (_c *MockLinkRepository_FindByUserID_Call) Return(linkRows []model.LinkRow, err error) *MockLinkRepository_FindByUserID_Call {
 	_c.Call.Return(linkRows, err)
 	return _c
 }
 
-func (_c *MockLinkRepository_FindByUserID_Call) RunAndReturn(run func(userID []byte) ([]model.DbLinkRow, error)) *MockLinkRepository_FindByUserID_Call {
+func (_c *MockLinkRepository_FindByUserID_Call) RunAndReturn(run func(userID []byte) ([]model.LinkRow, error)) *MockLinkRepository_FindByUserID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -275,7 +275,7 @@ func (_c *MockLinkRepository_Save_Call) RunAndReturn(run func(path []byte, short
 }
 
 // SaveMany provides a mock function for the type MockLinkRepository
-func (_mock *MockLinkRepository) SaveMany(values []model.DbLinkRow, userID []byte) error {
+func (_mock *MockLinkRepository) SaveMany(values []model.LinkRow, userID []byte) error {
 	ret := _mock.Called(values, userID)
 
 	if len(ret) == 0 {
@@ -283,7 +283,7 @@ func (_mock *MockLinkRepository) SaveMany(values []model.DbLinkRow, userID []byt
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func([]model.DbLinkRow, []byte) error); ok {
+	if returnFunc, ok := ret.Get(0).(func([]model.LinkRow, []byte) error); ok {
 		r0 = returnFunc(values, userID)
 	} else {
 		r0 = ret.Error(0)
@@ -297,17 +297,17 @@ type MockLinkRepository_SaveMany_Call struct {
 }
 
 // SaveMany is a helper method to define mock.On call
-//   - values []model.DbLinkRow
+//   - values []model.LinkRow
 //   - userID []byte
 func (_e *MockLinkRepository_Expecter) SaveMany(values interface{}, userID interface{}) *MockLinkRepository_SaveMany_Call {
 	return &MockLinkRepository_SaveMany_Call{Call: _e.mock.On("SaveMany", values, userID)}
 }
 
-func (_c *MockLinkRepository_SaveMany_Call) Run(run func(values []model.DbLinkRow, userID []byte)) *MockLinkRepository_SaveMany_Call {
+func (_c *MockLinkRepository_SaveMany_Call) Run(run func(values []model.LinkRow, userID []byte)) *MockLinkRepository_SaveMany_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 []model.DbLinkRow
+		var arg0 []model.LinkRow
 		if args[0] != nil {
-			arg0 = args[0].([]model.DbLinkRow)
+			arg0 = args[0].([]model.LinkRow)
 		}
 		var arg1 []byte
 		if args[1] != nil {
@@ -326,7 +326,7 @@ func (_c *MockLinkRepository_SaveMany_Call) Return(err error) *MockLinkRepositor
 	return _c
 }
 
-func (_c *MockLinkRepository_SaveMany_Call) RunAndReturn(run func(values []model.DbLinkRow, userID []byte) error) *MockLinkRepository_SaveMany_Call {
+func (_c *MockLinkRepository_SaveMany_Call) RunAndReturn(run func(values []model.LinkRow, userID []byte) error) *MockLinkRepository_SaveMany_Call {
 	_c.Call.Return(run)
 	return _c
 }

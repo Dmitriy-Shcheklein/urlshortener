@@ -173,23 +173,23 @@ func (_c *MockService_CreateShort_Call) RunAndReturn(run func(originalURL []byte
 }
 
 // FindByUserID provides a mock function for the type MockService
-func (_mock *MockService) FindByUserID(userID []byte) ([]model.DbLinkRow, error) {
+func (_mock *MockService) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	ret := _mock.Called(userID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindByUserID")
 	}
 
-	var r0 []model.DbLinkRow
+	var r0 []model.LinkRow
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func([]byte) ([]model.DbLinkRow, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func([]byte) ([]model.LinkRow, error)); ok {
 		return returnFunc(userID)
 	}
-	if returnFunc, ok := ret.Get(0).(func([]byte) []model.DbLinkRow); ok {
+	if returnFunc, ok := ret.Get(0).(func([]byte) []model.LinkRow); ok {
 		r0 = returnFunc(userID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]model.DbLinkRow)
+			r0 = ret.Get(0).([]model.LinkRow)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func([]byte) error); ok {
@@ -224,12 +224,12 @@ func (_c *MockService_FindByUserID_Call) Run(run func(userID []byte)) *MockServi
 	return _c
 }
 
-func (_c *MockService_FindByUserID_Call) Return(linkRows []model.DbLinkRow, err error) *MockService_FindByUserID_Call {
+func (_c *MockService_FindByUserID_Call) Return(linkRows []model.LinkRow, err error) *MockService_FindByUserID_Call {
 	_c.Call.Return(linkRows, err)
 	return _c
 }
 
-func (_c *MockService_FindByUserID_Call) RunAndReturn(run func(userID []byte) ([]model.DbLinkRow, error)) *MockService_FindByUserID_Call {
+func (_c *MockService_FindByUserID_Call) RunAndReturn(run func(userID []byte) ([]model.LinkRow, error)) *MockService_FindByUserID_Call {
 	_c.Call.Return(run)
 	return _c
 }
