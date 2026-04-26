@@ -134,6 +134,18 @@ func TestGetById(t *testing.T) {
 			assert.Equal(t, "Error while getting url\n", writer.Body.String())
 		},
 	)
+
+	t.Run(
+		"Должен вернуть 410 код", func(t *testing.T) {
+			setup(t)
+
+			service.EXPECT().GetByID(path).Return(nil, nil)
+
+			handler.GetByID(writer, request)
+
+			assert.Equal(t, http.StatusGone, writer.Code)
+		},
+	)
 }
 
 func TestCreateShort(t *testing.T) {

@@ -73,6 +73,10 @@ func (h *Handler) GetByID(writer http.ResponseWriter, request *http.Request) {
 		http.Error(writer, "Error while getting url", http.StatusBadRequest)
 		return
 	}
+	if link == nil {
+		writer.WriteHeader(http.StatusGone)
+		return
+	}
 
 	writer.Header().Add("Content-Type", "text/plain")
 	writer.Header().Add("Location", string(link))
