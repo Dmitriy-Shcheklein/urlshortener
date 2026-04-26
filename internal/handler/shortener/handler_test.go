@@ -579,14 +579,14 @@ func TestHandler_GetByUserID(t *testing.T) {
 		request      *http.Request
 		path         string
 		userID       []byte
-		urls         []model.LinkRow
+		urls         []model.DbLinkRow
 		baseAddress  []byte
 	)
 
 	setup := func(t *testing.T) {
 		userID = []byte("userID")
 		path = "test"
-		urls = []model.LinkRow{
+		urls = []model.DbLinkRow{
 			{
 				ID:          "1",
 				ShortURL:    "short1",
@@ -661,7 +661,7 @@ func TestHandler_GetByUserID(t *testing.T) {
 		"Установлен статус 204", func(t *testing.T) {
 			setup(t)
 
-			service.EXPECT().FindByUserID(userID).Return([]model.LinkRow{}, nil)
+			service.EXPECT().FindByUserID(userID).Return([]model.DbLinkRow{}, nil)
 
 			handler.GetByUserID(writer, request)
 

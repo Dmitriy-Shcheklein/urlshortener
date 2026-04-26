@@ -82,7 +82,7 @@ func TestHealthcheckRepository(t *testing.T) {
 	t.Run(
 		"Тест метода SaveMany", func(t *testing.T) {
 			userID := []byte("userID")
-			incoming := []model.LinkRow{
+			incoming := []model.DbLinkRow{
 				{ShortURL: "firstShort", OriginalURL: "firstOriginal"},
 				{ShortURL: "secondShort", OriginalURL: "secondOriginal"},
 			}
@@ -221,7 +221,7 @@ func TestHealthcheckRepository(t *testing.T) {
 		"Тест метода FindByUserID", func(t *testing.T) {
 			userID := []byte("userID")
 			expectedQuery := "SELECT id, short_url, original_url, user_id from links WHERE user_id = 'userID'::varchar"
-			expectedRes := []model.LinkRow{
+			expectedRes := []model.DbLinkRow{
 				{
 					ID:          "id1",
 					OriginalURL: "original1",

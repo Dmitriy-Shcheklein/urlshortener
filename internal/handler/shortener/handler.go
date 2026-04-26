@@ -18,7 +18,7 @@ type Service interface {
 	GetByID(ID string) ([]byte, error)
 	CreateShort(originalURL []byte, userID []byte) ([]byte, error)
 	CreateMany(values []model.CreateManyBodyRaw, userID []byte) ([]model.CreateManyResponseRaw, error)
-	FindByUserID(userID []byte) ([]model.LinkRow, error)
+	FindByUserID(userID []byte) ([]model.DbLinkRow, error)
 }
 
 type Config interface {
@@ -308,7 +308,7 @@ func (h *Handler) prepareRequest(host string, short []byte) []byte {
 }
 
 func (h *Handler) prepareFindByUserIDResponse(
-	w http.ResponseWriter, host string, res []model.LinkRow, status int, headers map[string]string,
+	w http.ResponseWriter, host string, res []model.DbLinkRow, status int, headers map[string]string,
 ) {
 	if status == http.StatusNoContent {
 		w.WriteHeader(status)

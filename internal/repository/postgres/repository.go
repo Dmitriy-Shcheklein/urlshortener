@@ -100,7 +100,7 @@ func (r *Repository) geeByOriginalURL(url []byte) ([]byte, error) {
 	return []byte(shortURL), nil
 }
 
-func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
+func (r *Repository) SaveMany(values []model.DbLinkRow, userID []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
@@ -128,7 +128,7 @@ func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 	return nil
 }
 
-func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
+func (r *Repository) FindByUserID(userID []byte) ([]model.DbLinkRow, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
@@ -143,7 +143,7 @@ func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 		return nil, err
 	}
 
-	links, err := pgx.CollectRows(rows, pgx.RowToStructByNameLax[model.LinkRow])
+	links, err := pgx.CollectRows(rows, pgx.RowToStructByNameLax[model.DbLinkRow])
 	if err != nil {
 		return nil, err
 	}

@@ -49,7 +49,10 @@ func (r *Repository) GetByID(id string) ([]byte, error) {
 			if err = json.Unmarshal([]byte(line), &raw); err != nil {
 				return []byte{}, err
 			}
-			if !raw.IsDeleted.Valid || !raw.IsDeleted.Bool {
+			if raw.IsDeleted == nil {
+				continue
+			}
+			if *raw.IsDeleted {
 				continue
 			}
 			return []byte(raw.OriginalURL), nil
@@ -59,7 +62,7 @@ func (r *Repository) GetByID(id string) ([]byte, error) {
 }
 
 func (r *Repository) Save(originalURL []byte, short []byte, userID []byte) error {
-	fileRaw := &model.LinkRow{
+	fileRaw := &model.DbLinkRow{
 		OriginalURL: string(originalURL),
 		ShortURL:    string(short),
 		ID:          uuid.NewString(),
@@ -82,7 +85,7 @@ func (r *Repository) Save(originalURL []byte, short []byte, userID []byte) error
 	return nil
 }
 
-func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
+func (r *Repository) SaveMany(values []model.DbLinkRow, userID []byte) error {
 	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
 	if err != nil {
 		return err
@@ -92,7 +95,7 @@ func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 			log.Err(err).Msg("error while close file")
 		}
 	}()
-	raws := make([]model.LinkRow, len(values))
+	raws := make([]model.DbLinkRow, len(values))
 	for i := range values {
 		raws[i].ID = uuid.NewString()
 		raws[i].ShortURL = values[i].ShortURL
@@ -106,23 +109,23 @@ func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 	return nil
 }
 
-func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
+func (r *Repository) FindByUserID(userID []byte) ([]model.DbLinkRow, error) {
 	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY|os.O_CREATE, 0o600)
 	if err != nil {
-		return []model.LinkRow{}, err
+		return []model.DbLinkRow{}, err
 	}
 	defer func() {
 		if err = file.Close(); err != nil {
 			log.Err(err).Msg("error while close file")
 		}
 	}()
-	out := make([]model.LinkRow, 0)
+	out := make([]model.DbLinkRow, 0)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.Contains(line, string(userID)) {
-			var raw model.LinkRow
+			var raw model.DbLinkRow
 
 			if err = json.Unmarshal([]byte(line), &raw); err != nil {
 				return out, err
@@ -148,13 +151,13 @@ func (r *Repository) Delete(in []*model.LinkToDelete) error {
 		urlIndex[item.Link] = item.UserID
 	}
 
-	lines := make([]model.LinkRow, 0)
+	lines := make([]model.DbLinkRow, 0)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		var value model.LinkRow
+		var value model.DbLinkRow
 		if err = json.Unmarshal([]byte(line), &value); err != nil {
 			return err
 		}

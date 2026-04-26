@@ -29,21 +29,21 @@ func TestFindByUserID(t *testing.T) {
 	userID1 := uuid.NewString()
 	userID2 := uuid.NewString()
 
-	link1 := &model.LinkRow{
+	link1 := &model.DbLinkRow{
 		ID:          uuid.NewString(),
 		ShortURL:    "abc123",
 		OriginalURL: "http://example.com/1",
 		UserID:      userID1,
 	}
 
-	link2 := &model.LinkRow{
+	link2 := &model.DbLinkRow{
 		ID:          uuid.NewString(),
 		ShortURL:    "def456",
 		OriginalURL: "http://example.com/2",
 		UserID:      userID1,
 	}
 
-	link3 := &model.LinkRow{
+	link3 := &model.DbLinkRow{
 		ID:          uuid.NewString(),
 		ShortURL:    "ghi789",
 		OriginalURL: "http://example.com/3",
@@ -109,21 +109,21 @@ func TestRepository_Delete(t *testing.T) {
 
 			userID := uuid.NewString()
 
-			link1 := &model.LinkRow{
+			link1 := &model.DbLinkRow{
 				ID:          uuid.NewString(),
 				ShortURL:    "abc123",
 				OriginalURL: "http://example.com/1",
 				UserID:      userID,
 			}
 
-			link2 := &model.LinkRow{
+			link2 := &model.DbLinkRow{
 				ID:          uuid.NewString(),
 				ShortURL:    "def456",
 				OriginalURL: "http://example.com/2",
 				UserID:      userID,
 			}
 
-			link3 := &model.LinkRow{
+			link3 := &model.DbLinkRow{
 				ID:          uuid.NewString(),
 				ShortURL:    "ghi789",
 				OriginalURL: "http://example.com/3",
@@ -178,7 +178,7 @@ func TestRepository_Delete(t *testing.T) {
 
 			userID := uuid.NewString()
 
-			link1 := &model.LinkRow{
+			link1 := &model.DbLinkRow{
 				ID:          uuid.NewString(),
 				ShortURL:    "abc123",
 				OriginalURL: "http://example.com/1",
@@ -220,7 +220,7 @@ func TestRepository_Delete(t *testing.T) {
 
 			userID := uuid.NewString()
 
-			link1 := &model.LinkRow{
+			link1 := &model.DbLinkRow{
 				ID:          uuid.NewString(),
 				ShortURL:    "abc123",
 				OriginalURL: "http://example.com/1",
@@ -261,7 +261,7 @@ func TestRepository_Delete(t *testing.T) {
 
 			userID := uuid.NewString()
 
-			link1 := &model.LinkRow{
+			link1 := &model.DbLinkRow{
 				ID:          uuid.NewString(),
 				ShortURL:    "abc123",
 				OriginalURL: "http://example.com/1",
