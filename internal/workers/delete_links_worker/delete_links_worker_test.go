@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -20,6 +22,7 @@ func TestDeleteLinksWorker(t *testing.T) {
 	setup := func(t *testing.T) {
 		service = NewMockService(t)
 		worker = New(service)
+		logger.Logger = new(zerolog.Nop())
 	}
 
 	t.Run(
@@ -48,7 +51,6 @@ func TestDeleteLinksWorker(t *testing.T) {
 					worker.Start(ctx)
 
 					require.NotNil(t, worker.cancelFunc)
-					require.NotNil(t, worker.ctx)
 				},
 			)
 		},
@@ -73,6 +75,7 @@ func TestDeleteLinksWorker(t *testing.T) {
 						{urls: urls2, userID: userID2},
 					}
 					var forDelete []*model.LinkToDelete
+					worker.timeout = time.Millisecond
 					worker.Start(context.Background())
 
 					service.EXPECT().Delete(
@@ -95,6 +98,20 @@ func TestDeleteLinksWorker(t *testing.T) {
 					)
 				},
 			)
+
+			t.Run(
+				"Тест паники", func(t *testing.T) {
+					setup(t)
+
+					service.EXPECT().Delete(mock.Anything).Panic("panic")
+
+					errChan := worker.Start(context.Background())
+
+					worker.AddToQueue([]string{"url"}, "userID")
+
+					require.Error(t, <-errChan)
+				},
+			)
 		},
 	)
 
@@ -106,11 +123,7 @@ func TestDeleteLinksWorker(t *testing.T) {
 
 					worker.Start(context.Background())
 
-					worker.Stop()
-
-					_, ok := <-worker.mainQueue
-
-					require.False(t, ok)
+					require.NotPanics(t, func() { worker.Stop() })
 				},
 			)
 		},

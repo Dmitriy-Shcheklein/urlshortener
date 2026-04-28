@@ -59,7 +59,7 @@ func main() {
 			log.Fatalf("error while bootstrap healthcheck handler: %s", err)
 		}
 	}
-	shutdownFuncs, err := bootstrap.InitShortener(baseCancelCtx, cfg, dbPool, router)
+	initResult, err := bootstrap.InitShortener(baseCancelCtx, cfg, dbPool, router)
 	if err != nil {
 		log.Fatalf("error while create handlers: %s", err)
 	}
@@ -83,21 +83,21 @@ func main() {
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	select {
+	case <-quit:
+	case <-initResult.ErrChannel:
+	}
 	log.Println("Shutting down server...")
 	cancelFunc()
-
-	shutdown(server, shutdownFuncs)
+	shutdown(server, initResult)
 
 	log.Println("Server exiting")
 }
 
-func shutdown(server *http.Server, shutdownFuncs []func()) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+func shutdown(server *http.Server, initResult *bootstrap.InitResult) {
 	wg := sync.WaitGroup{}
-	if len(shutdownFuncs) != 0 {
-		for _, fn := range shutdownFuncs {
+	if len(initResult.Shutdowns) != 0 {
+		for _, fn := range initResult.Shutdowns {
 			wg.Add(1)
 			go func(fn func()) {
 				defer wg.Done()
@@ -106,6 +106,8 @@ func shutdown(server *http.Server, shutdownFuncs []func()) {
 		}
 	}
 	wg.Wait()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 	if err := server.Shutdown(ctx); err != nil {
 		log.Printf("Server forced to shutdown: %v", err)
 		if err = server.Close(); err != nil {

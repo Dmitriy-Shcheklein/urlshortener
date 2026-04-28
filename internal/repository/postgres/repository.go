@@ -21,7 +21,7 @@ type Pool interface {
 	Ping() error
 	QueryRow(ctx context.Context, sql string, args ...any) PgxRow
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	Query(ctx context.Context, sql string, args ...any) (PgxRows, error)
 }
 
 type Repository struct {
@@ -50,9 +50,6 @@ func (r *Repository) GetByID(ID string) ([]byte, error) {
 
 	err := r.pool.QueryRow(ctx, query, ID).Scan(&originalURL)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
 		return nil, err
 	}
 	return []byte(originalURL), nil
@@ -156,10 +153,6 @@ func (r *Repository) Delete(in []*model.LinkToDelete) error {
 		return nil
 	}
 
-	timeout := 5 * time.Second
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
 	query := "UPDATE links SET is_deleted = true FROM (VALUES %s) AS data(short_url, user_id) WHERE links.short_url = data.short_url AND links.user_id = data.user_id"
 
 	values := make([]string, len(in))
@@ -172,6 +165,6 @@ func (r *Repository) Delete(in []*model.LinkToDelete) error {
 
 	query = fmt.Sprintf(query, strings.Join(values, ", "))
 
-	_, err := r.pool.Exec(ctx, query, args...)
+	_, err := r.pool.Exec(context.Background(), query, args...)
 	return err
 }

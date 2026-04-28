@@ -2,10 +2,12 @@ package delete_links_worker
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/rs/zerolog/log"
 )
@@ -19,16 +21,15 @@ type DeleteLinksWorker struct {
 	cancelFunc  context.CancelFunc
 	service     Service
 	wg          sync.WaitGroup
-	ctx         context.Context
-	inWg        sync.WaitGroup
-	stopOnce    sync.Once
 	initialized atomic.Bool
 	accMu       sync.Mutex
+	timeout     time.Duration
 }
 
 func New(service Service) *DeleteLinksWorker {
 	worker := &DeleteLinksWorker{
 		service: service, mainQueue: make(chan *model.LinkToDelete),
+		timeout: time.Second,
 	}
 
 	worker.initialized.Store(false)
@@ -36,87 +37,59 @@ func New(service Service) *DeleteLinksWorker {
 }
 
 func (d *DeleteLinksWorker) AddToQueue(urls []string, userID string) {
-	if d.ctx == nil {
-		log.Error().Msg("ctx is nil")
-		return
+	for _, value := range urls {
+		d.mainQueue <- &model.LinkToDelete{Link: value, UserID: userID}
 	}
-
-	d.inWg.Add(1)
-	go func() {
-		defer d.inWg.Done()
-		for _, value := range urls {
-			select {
-			case <-d.ctx.Done():
-				return
-			case d.mainQueue <- &model.LinkToDelete{Link: value, UserID: userID}:
-			}
-		}
-	}()
 }
 
-func (d *DeleteLinksWorker) Start(ctx context.Context) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Error().
-				Interface("panic", r).
-				Stack().
-				Msg("panic in removeLinks")
-			d.wg.Done()
-		}
-	}()
+func (d *DeleteLinksWorker) Start(ctx context.Context) chan error {
 	if d.initialized.Load() {
-		return
+		return nil
 	}
 
 	ctxWithCancel, cancel := context.WithCancel(ctx)
-	d.ctx = ctxWithCancel
 	d.cancelFunc = func() {
 		cancel()
 	}
 
+	errChan := make(chan error)
 	d.wg.Add(1)
-	go d.removeLinks()
+	go d.removeLinks(ctxWithCancel, errChan)
 	d.initialized.Store(true)
+	return errChan
 }
 
-func (d *DeleteLinksWorker) removeLinks() {
+func (d *DeleteLinksWorker) removeLinks(ctx context.Context, errChan chan error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Logger.Error().Interface("panic", r).Stack().
+				Msg("panic in removeLinks")
+			errChan <- fmt.Errorf("panic: %v", r)
+		}
+	}()
 	defer d.wg.Done()
 
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(d.timeout)
 
 	acc := make([]*model.LinkToDelete, 0)
 
-	flush := func() {
-		d.accMu.Lock()
-		defer d.accMu.Unlock()
-		if len(acc) == 0 {
-			return
-		}
-		if err := d.service.Delete(acc); err != nil {
-			log.Error().Err(err).Msg("error while delete links")
-			return
-		}
-		acc = acc[:0]
-	}
-
 	for {
 		select {
-		case <-d.ctx.Done():
-			flush()
+		case <-ctx.Done():
+			d.flush(&acc)
 			return
 		case value, ok := <-d.mainQueue:
-
 			if !ok {
-				flush()
+				d.flush(&acc)
 				return
 			}
 			d.addToAcc(&acc, value)
 			if len(acc) > 99 {
-				flush()
+				d.flush(&acc)
 			}
 		case <-ticker.C:
 			if len(acc) > 0 {
-				flush()
+				d.flush(&acc)
 			}
 		}
 	}
@@ -132,7 +105,18 @@ func (d *DeleteLinksWorker) Stop() {
 	if d.cancelFunc != nil {
 		d.cancelFunc()
 	}
-	d.inWg.Wait()
 	d.wg.Wait()
-	d.stopOnce.Do(func() { close(d.mainQueue) })
+}
+
+func (d *DeleteLinksWorker) flush(acc *[]*model.LinkToDelete) {
+	d.accMu.Lock()
+	defer d.accMu.Unlock()
+	if len(*acc) == 0 {
+		return
+	}
+	if err := d.service.Delete(*acc); err != nil {
+		log.Error().Err(err).Msg("error while delete links")
+		return
+	}
+	*acc = (*acc)[:0]
 }

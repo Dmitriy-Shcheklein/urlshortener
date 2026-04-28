@@ -27,7 +27,7 @@ func New(repository LinkRepository) *Service {
 func (s *Service) GetByID(id string) ([]byte, error) {
 	link, err := s.linkRepository.GetByID(id)
 	if err != nil {
-		return link, err
+		return nil, err
 	}
 	return link, nil
 }
@@ -36,7 +36,7 @@ func (s *Service) CreateShort(originalURL []byte, userID []byte) ([]byte, error)
 	short := shortenURLCRC32(originalURL)
 
 	if err := s.linkRepository.Save(originalURL, short, userID); err != nil {
-		return short, err
+		return nil, err
 	}
 
 	return short, nil

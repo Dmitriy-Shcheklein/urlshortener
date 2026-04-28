@@ -1,6 +1,7 @@
 package shortener
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -8,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/middlewares"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/postgres"
 	"github.com/go-playground/validator/v10"
+	"github.com/jackc/pgx/v5"
 )
 
 type Service interface {
@@ -29,10 +30,15 @@ type DeleteWorker interface {
 	AddToQueue(urls []string, userID string)
 }
 
+type AuthService interface {
+	GetUserID(ctx context.Context) ([]byte, error)
+}
+
 type Handler struct {
 	service      Service
 	config       Config
 	deleteWorker DeleteWorker
+	authSvc      AuthService
 }
 
 type CreateShortBody struct {
@@ -46,7 +52,7 @@ type FindByUserIDResponse struct {
 	OriginalURL string `json:"original_url"`
 }
 
-func New(service Service, config Config, deleteWorker DeleteWorker) (*Handler, error) {
+func New(service Service, config Config, deleteWorker DeleteWorker, authService AuthService) (*Handler, error) {
 	if service == nil {
 		return &Handler{}, errors.New("handler service must be not nil")
 	}
@@ -56,8 +62,11 @@ func New(service Service, config Config, deleteWorker DeleteWorker) (*Handler, e
 	if deleteWorker == nil {
 		return &Handler{}, errors.New("deleteWorker must be not nil")
 	}
+	if authService == nil {
+		return &Handler{}, errors.New("authService must be not nil")
+	}
 
-	return &Handler{service: service, config: config, deleteWorker: deleteWorker}, nil
+	return &Handler{service: service, config: config, deleteWorker: deleteWorker, authSvc: authService}, nil
 }
 
 func (h *Handler) GetByID(writer http.ResponseWriter, request *http.Request) {
@@ -70,11 +79,12 @@ func (h *Handler) GetByID(writer http.ResponseWriter, request *http.Request) {
 
 	link, err := h.service.GetByID(strID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writer.WriteHeader(http.StatusGone)
+			return
+		}
+
 		http.Error(writer, "Error while getting url", http.StatusBadRequest)
-		return
-	}
-	if link == nil {
-		writer.WriteHeader(http.StatusGone)
 		return
 	}
 
@@ -102,9 +112,10 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 		http.Error(writer, "Empty body", http.StatusBadRequest)
 		return
 	}
-	userID, err := getUserID(request)
+	userID, err := h.authSvc.GetUserID(request.Context())
 	if err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while get UserID")
+		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	short, err := h.service.CreateShort(body, userID)
@@ -117,7 +128,8 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 	}
 
 	if err != nil {
-		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while create short url")
+		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	result := h.prepareRequest(request.Host, short)
@@ -142,9 +154,10 @@ func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.R
 		http.Error(writer, "Error while validate body", http.StatusBadRequest)
 		return
 	}
-	userID, err := getUserID(request)
+	userID, err := h.authSvc.GetUserID(request.Context())
 	if err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while get UserID")
+		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	short, err := h.service.CreateShort([]byte(body.URL), userID)
@@ -154,7 +167,8 @@ func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.R
 		return
 	}
 	if err != nil {
-		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while create short url")
+		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	h.prepareJSONResponse(writer, request.Host, short, http.StatusCreated, headers)
@@ -192,19 +206,19 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 	}
 	for i := range deserialized {
 		if err = validate.Struct(deserialized[i]); err != nil {
-			logger.Logger.Error().Err(err).Msg("error while validate body\n")
 			http.Error(writer, "Error while validate body", http.StatusBadRequest)
 			return
 		}
 	}
-	userID, err := getUserID(request)
+	userID, err := h.authSvc.GetUserID(request.Context())
 	if err != nil {
+		logger.Logger.Error().Err(err).Msg("error while get UserID")
 		http.Error(writer, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	shorts, err := h.service.CreateMany(deserialized, userID)
 	if err != nil {
-		logger.Logger.Error().Err(err).Msg("error while create short url\n")
+		logger.Logger.Error().Err(err).Msg("error while create short url")
 		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
 		return
 	}
@@ -216,7 +230,8 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 
 	resp, err := json.Marshal(shorts)
 	if err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while prepare JSON")
+		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
@@ -225,15 +240,17 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 }
 
 func (h *Handler) GetByUserID(w http.ResponseWriter, r *http.Request) {
-	userID, err := getUserID(r)
+	userID, err := h.authSvc.GetUserID(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while get UserID")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	res, err := h.service.FindByUserID(userID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while FindByUserID")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
@@ -252,9 +269,10 @@ func (h *Handler) DeleteLinks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid content-type", http.StatusBadRequest)
 		return
 	}
-	userID, err := getUserID(r)
+	userID, err := h.authSvc.GetUserID(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while get UserID")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
@@ -330,7 +348,8 @@ func (h *Handler) prepareFindByUserIDResponse(
 
 	resp, err := json.Marshal(output)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while serialized body")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	prepareResponse(w, headers, status, resp)
@@ -346,7 +365,8 @@ func (h *Handler) prepareJSONResponse(
 
 	resp, err := json.Marshal(response)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while serialized body")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	prepareResponse(w, headers, status, resp)
@@ -361,16 +381,9 @@ func prepareResponse(w http.ResponseWriter, headers map[string]string, statusCod
 		// #nosec G705
 		_, err := w.Write(body)
 		if err != nil {
-			http.Error(w, "Error while write body", http.StatusInternalServerError)
+			logger.Logger.Error().Err(err).Msg("error while write body")
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 	}
-}
-
-func getUserID(r *http.Request) ([]byte, error) {
-	v, ok := r.Context().Value(middlewares.UserIDKey).([]byte)
-	if !ok {
-		return []byte{}, errors.New("error while getting UserID")
-	}
-	return v, nil
 }

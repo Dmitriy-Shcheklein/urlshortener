@@ -1,7 +1,6 @@
 package shortener
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -10,11 +9,12 @@ import (
 	"testing"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/middlewares"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/postgres"
+	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 type errorReader struct {
@@ -29,29 +29,39 @@ func TestNew(t *testing.T) {
 	service := NewMockService(t)
 	config := NewMockConfig(t)
 	deleteWorker := NewMockDeleteWorker(t)
+	auth := NewMockAuthService(t)
 
-	handler, _ := New(service, config, deleteWorker)
-	assert.NotNil(t, handler, "Указатель на обработчик не должен быть nil")
-	assert.NotNil(t, handler.service, "Указатель на сервис не должен быть nil")
+	handler, _ := New(service, config, deleteWorker, auth)
+	assert.NotNil(t, handler)
+	assert.NotNil(t, handler.service)
+	assert.NotNil(t, handler.deleteWorker)
+	assert.NotNil(t, handler.authSvc)
+	assert.NotNil(t, handler.config)
 }
 
 func TestNewErrors(t *testing.T) {
 	t.Run(
 		"Ошибка, сервис не инициализирован", func(t *testing.T) {
-			_, err := New(nil, NewMockConfig(t), NewMockDeleteWorker(t))
+			_, err := New(nil, NewMockConfig(t), NewMockDeleteWorker(t), NewMockAuthService(t))
 			assert.Equal(t, errors.New("handler service must be not nil"), err)
 		},
 	)
 	t.Run(
 		"Ошибка, конфиг не инициализирован", func(t *testing.T) {
-			_, err := New(NewMockService(t), nil, NewMockDeleteWorker(t))
+			_, err := New(NewMockService(t), nil, NewMockDeleteWorker(t), NewMockAuthService(t))
 			assert.Equal(t, errors.New("handler config must be not nil"), err)
 		},
 	)
 	t.Run(
 		"Ошибка, deleteWorker не инициализирован", func(t *testing.T) {
-			_, err := New(NewMockService(t), NewMockConfig(t), nil)
+			_, err := New(NewMockService(t), NewMockConfig(t), nil, NewMockAuthService(t))
 			assert.Equal(t, errors.New("deleteWorker must be not nil"), err)
+		},
+	)
+	t.Run(
+		"Ошибка, auth не инициализирован", func(t *testing.T) {
+			_, err := New(NewMockService(t), NewMockConfig(t), NewMockDeleteWorker(t), nil)
+			assert.Equal(t, errors.New("authService must be not nil"), err)
 		},
 	)
 }
@@ -66,6 +76,7 @@ func TestGetById(t *testing.T) {
 		fullLink     []byte
 		path         string
 		deleteWorker *MockDeleteWorker
+		auth         *MockAuthService
 	)
 
 	setup := func(t *testing.T) {
@@ -76,7 +87,8 @@ func TestGetById(t *testing.T) {
 		service = NewMockService(t)
 		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
-		handler, _ = New(service, config, deleteWorker)
+		auth = NewMockAuthService(t)
+		handler, _ = New(service, config, deleteWorker, auth)
 		logger.Logger = new(zerolog.Nop())
 	}
 
@@ -139,7 +151,7 @@ func TestGetById(t *testing.T) {
 		"Должен вернуть 410 код", func(t *testing.T) {
 			setup(t)
 
-			service.EXPECT().GetByID(path).Return(nil, nil)
+			service.EXPECT().GetByID(path).Return(nil, pgx.ErrNoRows)
 
 			handler.GetByID(writer, request)
 
@@ -162,6 +174,7 @@ func TestCreateShort(t *testing.T) {
 		shortLink    []byte
 		baseAddress  []byte
 		userID       []byte
+		auth         *MockAuthService
 	)
 
 	logger.InitLogger(zerolog.Disabled)
@@ -174,13 +187,13 @@ func TestCreateShort(t *testing.T) {
 		body = strings.NewReader(fullLink)
 		request = httptest.NewRequest(http.MethodGet, path, body)
 		request.Header.Set("Content-Type", "text/plain")
-		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
 		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
+		auth = NewMockAuthService(t)
 
-		handler, _ = New(service, config, deleteWorker)
+		handler, _ = New(service, config, deleteWorker, auth)
 	}
 
 	t.Run(
@@ -189,6 +202,7 @@ func TestCreateShort(t *testing.T) {
 
 			service.EXPECT().CreateShort([]byte(fullLink), userID).Return(shortLink, nil)
 			config.EXPECT().GetBaseAddress().Return(baseAddress)
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			assert.NotPanics(
 				t, func() {
@@ -213,6 +227,7 @@ func TestCreateShort(t *testing.T) {
 
 				service.EXPECT().CreateShort([]byte(fullLink), userID).Return(shortLink, nil)
 				config.EXPECT().GetBaseAddress().Return(test.baseAddress)
+				auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 				handler.CreateShort(writer, request)
 
@@ -233,6 +248,7 @@ func TestCreateShort(t *testing.T) {
 				shLink, postgres.NewConflictError([]byte(fullLink), shLink),
 			)
 			config.EXPECT().GetBaseAddress().Return([]byte{})
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			handler.CreateShort(writer, request)
 
@@ -272,11 +288,12 @@ func TestCreateShort(t *testing.T) {
 			setup(t)
 
 			service.EXPECT().CreateShort([]byte(fullLink), userID).Return(nil, assert.AnError)
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			handler.CreateShort(writer, request)
 
 			assert.Equal(t, http.StatusInternalServerError, writer.Code)
-			assert.Equal(t, "Error while create short url\n", writer.Body.String())
+			assert.Equal(t, http.StatusText(http.StatusInternalServerError)+"\n", writer.Body.String())
 		},
 	)
 
@@ -308,6 +325,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 		shortLink    []byte
 		baseAddress  []byte
 		userID       []byte
+		auth         *MockAuthService
 	)
 
 	setup := func(t *testing.T) {
@@ -318,13 +336,14 @@ func TestCreateFromJSONBody(t *testing.T) {
 		body = strings.NewReader("{\"url\": \"https://practicum.yandex.ru\"}")
 		request = httptest.NewRequest(http.MethodPost, path, body)
 		request.Header.Set("Content-Type", "application/json")
-		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
 		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
+		auth = NewMockAuthService(t)
+		logger.Logger = new(zerolog.Nop())
 
-		handler, _ = New(service, config, deleteWorker)
+		handler, _ = New(service, config, deleteWorker, auth)
 	}
 
 	t.Run(
@@ -333,6 +352,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 
 			service.EXPECT().CreateShort([]byte(fullLink), userID).Return(shortLink, nil)
 			config.EXPECT().GetBaseAddress().Return(baseAddress)
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			assert.NotPanics(
 				t, func() {
@@ -357,6 +377,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 
 				service.EXPECT().CreateShort([]byte(fullLink), userID).Return(shortLink, nil)
 				config.EXPECT().GetBaseAddress().Return(test.baseAddress)
+				auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 				handler.CreateFromJSONBody(writer, request)
 
@@ -377,6 +398,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 				shortLink, postgres.NewConflictError(originalUrl, shortLink),
 			)
 			config.EXPECT().GetBaseAddress().Return([]byte("https://ya.ru"))
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			handler.CreateFromJSONBody(writer, request)
 
@@ -416,11 +438,12 @@ func TestCreateFromJSONBody(t *testing.T) {
 			setup(t)
 
 			service.EXPECT().CreateShort([]byte(fullLink), userID).Return(nil, assert.AnError)
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			handler.CreateFromJSONBody(writer, request)
 
 			assert.Equal(t, http.StatusInternalServerError, writer.Code)
-			assert.Equal(t, "Error while create short url\n", writer.Body.String())
+			assert.Equal(t, http.StatusText(http.StatusInternalServerError)+"\n", writer.Body.String())
 		},
 	)
 
@@ -452,6 +475,7 @@ func TestCreateMany(t *testing.T) {
 		body         io.Reader
 		baseAddress  []byte
 		userID       []byte
+		auth         *MockAuthService
 	)
 
 	setup := func(t *testing.T) {
@@ -462,13 +486,13 @@ func TestCreateMany(t *testing.T) {
 		body = strings.NewReader("[{\"original_url\": \"https://practicum.yandex.ru\", \"correlation_id\": \"id\"}]")
 		request = httptest.NewRequest(http.MethodPost, path, body)
 		request.Header.Set("Content-Type", "application/json")
-		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
 		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
+		auth = NewMockAuthService(t)
 
-		handler, _ = New(service, config, deleteWorker)
+		handler, _ = New(service, config, deleteWorker, auth)
 		logger.Logger = new(zerolog.Nop())
 	}
 
@@ -478,6 +502,7 @@ func TestCreateMany(t *testing.T) {
 
 			service.EXPECT().CreateMany(svcIncoming, userID).Return(svcResult, nil)
 			config.EXPECT().GetBaseAddress().Return(baseAddress)
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			assert.NotPanics(
 				t, func() {
@@ -508,6 +533,7 @@ func TestCreateMany(t *testing.T) {
 
 				service.EXPECT().CreateMany(svcIncoming, userID).Return(svcResult, nil)
 				config.EXPECT().GetBaseAddress().Return(test.baseAddress)
+				auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 				handler.CreateMany(writer, request)
 
@@ -547,6 +573,7 @@ func TestCreateMany(t *testing.T) {
 			setup(t)
 
 			service.EXPECT().CreateMany(svcIncoming, userID).Return(nil, assert.AnError)
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			handler.CreateMany(writer, request)
 
@@ -581,6 +608,7 @@ func TestHandler_GetByUserID(t *testing.T) {
 		userID       []byte
 		urls         []model.LinkRow
 		baseAddress  []byte
+		auth         *MockAuthService
 	)
 
 	setup := func(t *testing.T) {
@@ -603,12 +631,12 @@ func TestHandler_GetByUserID(t *testing.T) {
 		baseAddress = []byte{}
 
 		request = httptest.NewRequest(http.MethodGet, "/"+path, nil)
-		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 		writer = httptest.NewRecorder()
 		service = NewMockService(t)
 		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
-		handler, _ = New(service, config, deleteWorker)
+		auth = NewMockAuthService(t)
+		handler, _ = New(service, config, deleteWorker, auth)
 		logger.Logger = new(zerolog.Nop())
 	}
 
@@ -618,6 +646,7 @@ func TestHandler_GetByUserID(t *testing.T) {
 
 			service.EXPECT().FindByUserID(userID).Return(urls, nil)
 			config.EXPECT().GetBaseAddress().Return(baseAddress)
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			handler.GetByUserID(writer, request)
 
@@ -634,12 +663,15 @@ func TestHandler_GetByUserID(t *testing.T) {
 	t.Run(
 		"Ошибка получения идентификатора юзера", func(t *testing.T) {
 			setup(t)
+
+			testError := assert.AnError
 			request = httptest.NewRequest(http.MethodGet, "/"+path, nil)
+			auth.EXPECT().GetUserID(mock.Anything).Return(nil, testError)
 
 			handler.GetByUserID(writer, request)
 
 			assert.Equal(t, http.StatusInternalServerError, writer.Code)
-			assert.Equal(t, "error while getting UserID\n", writer.Body.String())
+			assert.Equal(t, http.StatusText(http.StatusInternalServerError)+"\n", writer.Body.String())
 		},
 	)
 
@@ -649,11 +681,12 @@ func TestHandler_GetByUserID(t *testing.T) {
 
 			testError := assert.AnError
 			service.EXPECT().FindByUserID(userID).Return(nil, testError)
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			handler.GetByUserID(writer, request)
 
 			assert.Equal(t, http.StatusInternalServerError, writer.Code)
-			assert.Equal(t, testError.Error()+"\n", writer.Body.String())
+			assert.Equal(t, http.StatusText(http.StatusInternalServerError)+"\n", writer.Body.String())
 		},
 	)
 
@@ -662,6 +695,7 @@ func TestHandler_GetByUserID(t *testing.T) {
 			setup(t)
 
 			service.EXPECT().FindByUserID(userID).Return([]model.LinkRow{}, nil)
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			handler.GetByUserID(writer, request)
 
@@ -681,6 +715,7 @@ func TestHandler_DeleteLinks(t *testing.T) {
 		userID       []byte
 		urls         []string
 		path         string
+		auth         *MockAuthService
 	)
 
 	setup := func(t *testing.T) {
@@ -691,13 +726,13 @@ func TestHandler_DeleteLinks(t *testing.T) {
 		path = "test"
 
 		request = httptest.NewRequest(http.MethodDelete, "/"+path, strings.NewReader("[\"1\",\"2\",\"3\"]"))
-		request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 		request.Header.Set("Content-Type", "application/json")
 		writer = httptest.NewRecorder()
 		deleteWorker = NewMockDeleteWorker(t)
 		service = NewMockService(t)
 		config = NewMockConfig(t)
-		handler, _ = New(service, config, deleteWorker)
+		auth = NewMockAuthService(t)
+		handler, _ = New(service, config, deleteWorker, auth)
 		logger.Logger = new(zerolog.Nop())
 	}
 
@@ -706,6 +741,7 @@ func TestHandler_DeleteLinks(t *testing.T) {
 			setup(t)
 
 			deleteWorker.EXPECT().AddToQueue(urls, string(userID)).Return()
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			handler.DeleteLinks(writer, request)
 
@@ -716,13 +752,13 @@ func TestHandler_DeleteLinks(t *testing.T) {
 	t.Run(
 		"Ошибка получения идентификатора юзера", func(t *testing.T) {
 			setup(t)
-			request = httptest.NewRequest(http.MethodDelete, "/"+path, nil)
-			request.Header.Set("Content-Type", "application/json")
+
+			auth.EXPECT().GetUserID(mock.Anything).Return(nil, assert.AnError)
 
 			handler.DeleteLinks(writer, request)
 
 			assert.Equal(t, http.StatusInternalServerError, writer.Code)
-			assert.Equal(t, "error while getting UserID\n", writer.Body.String())
+			assert.Equal(t, http.StatusText(http.StatusInternalServerError)+"\n", writer.Body.String())
 		},
 	)
 
@@ -742,8 +778,9 @@ func TestHandler_DeleteLinks(t *testing.T) {
 		"Ошибка, пустое тело запрос", func(t *testing.T) {
 			setup(t)
 			request = httptest.NewRequest(http.MethodDelete, "/"+path, strings.NewReader("[]"))
-			request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 			request.Header.Set("Content-Type", "application/json")
+
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			handler.DeleteLinks(writer, request)
 
@@ -756,8 +793,9 @@ func TestHandler_DeleteLinks(t *testing.T) {
 		"Ошибка, невалидный JSON", func(t *testing.T) {
 			setup(t)
 			request = httptest.NewRequest(http.MethodDelete, "/"+path, strings.NewReader("[ads: 1]"))
-			request = request.WithContext(context.WithValue(request.Context(), middlewares.UserIDKey, userID))
 			request.Header.Set("Content-Type", "application/json")
+
+			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
 
 			handler.DeleteLinks(writer, request)
 

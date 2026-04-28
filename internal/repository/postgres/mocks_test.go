@@ -697,7 +697,7 @@ func (_c *MockPool_Ping_Call) RunAndReturn(run func() error) *MockPool_Ping_Call
 }
 
 // Query provides a mock function for the type MockPool
-func (_mock *MockPool) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+func (_mock *MockPool) Query(ctx context.Context, sql string, args ...any) (PgxRows, error) {
 	var tmpRet mock.Arguments
 	if len(args) > 0 {
 		tmpRet = _mock.Called(ctx, sql, args)
@@ -710,16 +710,16 @@ func (_mock *MockPool) Query(ctx context.Context, sql string, args ...any) (pgx.
 		panic("no return value specified for Query")
 	}
 
-	var r0 pgx.Rows
+	var r0 PgxRows
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, ...any) (pgx.Rows, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, ...any) (PgxRows, error)); ok {
 		return returnFunc(ctx, sql, args...)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, ...any) pgx.Rows); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, ...any) PgxRows); ok {
 		r0 = returnFunc(ctx, sql, args...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(pgx.Rows)
+			r0 = ret.Get(0).(PgxRows)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, string, ...any) error); ok {
@@ -769,12 +769,12 @@ func (_c *MockPool_Query_Call) Run(run func(ctx context.Context, sql string, arg
 	return _c
 }
 
-func (_c *MockPool_Query_Call) Return(rows pgx.Rows, err error) *MockPool_Query_Call {
-	_c.Call.Return(rows, err)
+func (_c *MockPool_Query_Call) Return(v PgxRows, err error) *MockPool_Query_Call {
+	_c.Call.Return(v, err)
 	return _c
 }
 
-func (_c *MockPool_Query_Call) RunAndReturn(run func(ctx context.Context, sql string, args ...any) (pgx.Rows, error)) *MockPool_Query_Call {
+func (_c *MockPool_Query_Call) RunAndReturn(run func(ctx context.Context, sql string, args ...any) (PgxRows, error)) *MockPool_Query_Call {
 	_c.Call.Return(run)
 	return _c
 }
