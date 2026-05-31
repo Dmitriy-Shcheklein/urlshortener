@@ -1,6 +1,7 @@
 package shortener
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,21 +12,33 @@ import (
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/postgres"
 	"github.com/go-playground/validator/v10"
+	"github.com/jackc/pgx/v5"
 )
 
 type Service interface {
 	GetByID(ID string) ([]byte, error)
-	CreateShort(originalURL []byte) ([]byte, error)
-	CreateMany(values []model.CreateManyBodyRaw) ([]model.CreateManyResponseRaw, error)
+	CreateShort(originalURL []byte, userID []byte) ([]byte, error)
+	CreateMany(values []model.CreateManyBodyRaw, userID []byte) ([]model.CreateManyResponseRaw, error)
+	FindByUserID(userID []byte) ([]model.LinkRow, error)
 }
 
 type Config interface {
 	GetBaseAddress() []byte
 }
 
+type DeleteWorker interface {
+	AddToQueue(urls []string, userID string)
+}
+
+type AuthService interface {
+	GetUserID(ctx context.Context) ([]byte, error)
+}
+
 type Handler struct {
-	service Service
-	config  Config
+	service      Service
+	config       Config
+	deleteWorker DeleteWorker
+	authSvc      AuthService
 }
 
 type CreateShortBody struct {
@@ -34,16 +47,26 @@ type CreateShortBody struct {
 type CreateShortResponse struct {
 	Result string `json:"result"`
 }
+type FindByUserIDResponse struct {
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
+}
 
-func New(service Service, config Config) (*Handler, error) {
+func New(service Service, config Config, deleteWorker DeleteWorker, authService AuthService) (*Handler, error) {
 	if service == nil {
 		return &Handler{}, errors.New("handler service must be not nil")
 	}
 	if config == nil {
 		return &Handler{}, errors.New("handler config must be not nil")
 	}
+	if deleteWorker == nil {
+		return &Handler{}, errors.New("deleteWorker must be not nil")
+	}
+	if authService == nil {
+		return &Handler{}, errors.New("authService must be not nil")
+	}
 
-	return &Handler{service: service, config: config}, nil
+	return &Handler{service: service, config: config, deleteWorker: deleteWorker, authSvc: authService}, nil
 }
 
 func (h *Handler) GetByID(writer http.ResponseWriter, request *http.Request) {
@@ -56,6 +79,11 @@ func (h *Handler) GetByID(writer http.ResponseWriter, request *http.Request) {
 
 	link, err := h.service.GetByID(strID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writer.WriteHeader(http.StatusGone)
+			return
+		}
+
 		http.Error(writer, "Error while getting url", http.StatusBadRequest)
 		return
 	}
@@ -84,7 +112,13 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 		http.Error(writer, "Empty body", http.StatusBadRequest)
 		return
 	}
-	short, err := h.service.CreateShort(body)
+	userID, err := h.authSvc.GetUserID(request.Context())
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("error while get UserID")
+		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	short, err := h.service.CreateShort(body, userID)
 	headers := map[string]string{"Content-Type": "text/plain"}
 	if conflictError, ok := errors.AsType[*postgres.ConflictError](err); ok {
 		prepareResponse(
@@ -94,7 +128,8 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 	}
 
 	if err != nil {
-		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while create short url")
+		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	result := h.prepareRequest(request.Host, short)
@@ -119,15 +154,21 @@ func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.R
 		http.Error(writer, "Error while validate body", http.StatusBadRequest)
 		return
 	}
-
-	short, err := h.service.CreateShort([]byte(body.URL))
+	userID, err := h.authSvc.GetUserID(request.Context())
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("error while get UserID")
+		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	short, err := h.service.CreateShort([]byte(body.URL), userID)
 	headers := map[string]string{"Content-Type": "application/json"}
 	if conflictError, ok := errors.AsType[*postgres.ConflictError](err); ok {
 		h.prepareJSONResponse(writer, request.Host, conflictError.Shorten, http.StatusConflict, headers)
 		return
 	}
 	if err != nil {
-		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while create short url")
+		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	h.prepareJSONResponse(writer, request.Host, short, http.StatusCreated, headers)
@@ -165,15 +206,19 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 	}
 	for i := range deserialized {
 		if err = validate.Struct(deserialized[i]); err != nil {
-			logger.Logger.Error().Err(err).Msg("error while validate body\n")
 			http.Error(writer, "Error while validate body", http.StatusBadRequest)
 			return
 		}
 	}
-
-	shorts, err := h.service.CreateMany(deserialized)
+	userID, err := h.authSvc.GetUserID(request.Context())
 	if err != nil {
-		logger.Logger.Error().Err(err).Msg("error while create short url\n")
+		logger.Logger.Error().Err(err).Msg("error while get UserID")
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	shorts, err := h.service.CreateMany(deserialized, userID)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("error while create short url")
 		http.Error(writer, "Error while create short url", http.StatusInternalServerError)
 		return
 	}
@@ -185,12 +230,84 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 
 	resp, err := json.Marshal(shorts)
 	if err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while prepare JSON")
+		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	headers := map[string]string{"Content-Type": "application/json"}
 	prepareResponse(writer, headers, http.StatusCreated, resp)
+}
+
+func (h *Handler) GetByUserID(w http.ResponseWriter, r *http.Request) {
+	userID, err := h.authSvc.GetUserID(r.Context())
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("error while get UserID")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	res, err := h.service.FindByUserID(userID)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("error while FindByUserID")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	var status int
+	if len(res) == 0 {
+		status = http.StatusNoContent
+	} else {
+		status = http.StatusOK
+	}
+	headers := map[string]string{"Content-Type": "application/json"}
+	h.prepareFindByUserIDResponse(w, r.Host, res, status, headers)
+}
+
+func (h *Handler) DeleteLinks(w http.ResponseWriter, r *http.Request) {
+	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
+		http.Error(w, "Invalid content-type", http.StatusBadRequest)
+		return
+	}
+	userID, err := h.authSvc.GetUserID(r.Context())
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("error while get UserID")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read body", http.StatusBadRequest)
+		return
+	}
+	defer func() {
+		if err = r.Body.Close(); err != nil {
+			logger.Logger.Error().Err(err).Msg("error while close body")
+		}
+	}()
+
+	var deserialized []string
+
+	err = json.Unmarshal(body, &deserialized)
+	if err != nil {
+		http.Error(w, "Invalid JSON format", http.StatusBadRequest)
+		return
+	}
+
+	if len(deserialized) == 0 {
+		http.Error(w, "empty body values", http.StatusBadRequest)
+		return
+	}
+	for i := range deserialized {
+		if len(deserialized[i]) == 0 {
+			http.Error(w, "Invalid url format", http.StatusBadRequest)
+			return
+		}
+	}
+	h.deleteWorker.AddToQueue(deserialized, string(userID))
+
+	prepareResponse(w, make(map[string]string), http.StatusAccepted, []byte{})
 }
 
 func (h *Handler) prepareRequest(host string, short []byte) []byte {
@@ -208,6 +325,36 @@ func (h *Handler) prepareRequest(host string, short []byte) []byte {
 	return result
 }
 
+func (h *Handler) prepareFindByUserIDResponse(
+	w http.ResponseWriter, host string, res []model.LinkRow, status int, headers map[string]string,
+) {
+	if status == http.StatusNoContent {
+		w.WriteHeader(status)
+		return
+	}
+
+	var output []FindByUserIDResponse
+	if len(res) != 0 {
+		for _, value := range res {
+			shorten := h.prepareRequest(host, []byte(value.ShortURL))
+			output = append(
+				output, FindByUserIDResponse{
+					ShortURL:    string(shorten),
+					OriginalURL: value.OriginalURL,
+				},
+			)
+		}
+	}
+
+	resp, err := json.Marshal(output)
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("error while serialized body")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+	prepareResponse(w, headers, status, resp)
+}
+
 func (h *Handler) prepareJSONResponse(
 	w http.ResponseWriter, host string, res []byte, status int, headers map[string]string,
 ) {
@@ -218,7 +365,8 @@ func (h *Handler) prepareJSONResponse(
 
 	resp, err := json.Marshal(response)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Logger.Error().Err(err).Msg("error while serialized body")
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 	prepareResponse(w, headers, status, resp)
@@ -229,10 +377,13 @@ func prepareResponse(w http.ResponseWriter, headers map[string]string, statusCod
 		w.Header().Add(key, value)
 	}
 	w.WriteHeader(statusCode)
-	// #nosec G705
-	_, err := w.Write(body)
-	if err != nil {
-		http.Error(w, "Error while write body", http.StatusInternalServerError)
-		return
+	if len(body) != 0 {
+		// #nosec G705
+		_, err := w.Write(body)
+		if err != nil {
+			logger.Logger.Error().Err(err).Msg("error while write body")
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
 	}
 }

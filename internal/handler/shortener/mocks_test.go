@@ -5,6 +5,8 @@
 package shortener
 
 import (
+	"context"
+
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -37,8 +39,8 @@ func (_m *MockService) EXPECT() *MockService_Expecter {
 }
 
 // CreateMany provides a mock function for the type MockService
-func (_mock *MockService) CreateMany(values []model.CreateManyBodyRaw) ([]model.CreateManyResponseRaw, error) {
-	ret := _mock.Called(values)
+func (_mock *MockService) CreateMany(values []model.CreateManyBodyRaw, userID []byte) ([]model.CreateManyResponseRaw, error) {
+	ret := _mock.Called(values, userID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateMany")
@@ -46,18 +48,18 @@ func (_mock *MockService) CreateMany(values []model.CreateManyBodyRaw) ([]model.
 
 	var r0 []model.CreateManyResponseRaw
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func([]model.CreateManyBodyRaw) ([]model.CreateManyResponseRaw, error)); ok {
-		return returnFunc(values)
+	if returnFunc, ok := ret.Get(0).(func([]model.CreateManyBodyRaw, []byte) ([]model.CreateManyResponseRaw, error)); ok {
+		return returnFunc(values, userID)
 	}
-	if returnFunc, ok := ret.Get(0).(func([]model.CreateManyBodyRaw) []model.CreateManyResponseRaw); ok {
-		r0 = returnFunc(values)
+	if returnFunc, ok := ret.Get(0).(func([]model.CreateManyBodyRaw, []byte) []model.CreateManyResponseRaw); ok {
+		r0 = returnFunc(values, userID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]model.CreateManyResponseRaw)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func([]model.CreateManyBodyRaw) error); ok {
-		r1 = returnFunc(values)
+	if returnFunc, ok := ret.Get(1).(func([]model.CreateManyBodyRaw, []byte) error); ok {
+		r1 = returnFunc(values, userID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -71,18 +73,24 @@ type MockService_CreateMany_Call struct {
 
 // CreateMany is a helper method to define mock.On call
 //   - values []model.CreateManyBodyRaw
-func (_e *MockService_Expecter) CreateMany(values interface{}) *MockService_CreateMany_Call {
-	return &MockService_CreateMany_Call{Call: _e.mock.On("CreateMany", values)}
+//   - userID []byte
+func (_e *MockService_Expecter) CreateMany(values interface{}, userID interface{}) *MockService_CreateMany_Call {
+	return &MockService_CreateMany_Call{Call: _e.mock.On("CreateMany", values, userID)}
 }
 
-func (_c *MockService_CreateMany_Call) Run(run func(values []model.CreateManyBodyRaw)) *MockService_CreateMany_Call {
+func (_c *MockService_CreateMany_Call) Run(run func(values []model.CreateManyBodyRaw, userID []byte)) *MockService_CreateMany_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 []model.CreateManyBodyRaw
 		if args[0] != nil {
 			arg0 = args[0].([]model.CreateManyBodyRaw)
 		}
+		var arg1 []byte
+		if args[1] != nil {
+			arg1 = args[1].([]byte)
+		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -93,14 +101,14 @@ func (_c *MockService_CreateMany_Call) Return(createManyResponseRaws []model.Cre
 	return _c
 }
 
-func (_c *MockService_CreateMany_Call) RunAndReturn(run func(values []model.CreateManyBodyRaw) ([]model.CreateManyResponseRaw, error)) *MockService_CreateMany_Call {
+func (_c *MockService_CreateMany_Call) RunAndReturn(run func(values []model.CreateManyBodyRaw, userID []byte) ([]model.CreateManyResponseRaw, error)) *MockService_CreateMany_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // CreateShort provides a mock function for the type MockService
-func (_mock *MockService) CreateShort(originalURL []byte) ([]byte, error) {
-	ret := _mock.Called(originalURL)
+func (_mock *MockService) CreateShort(originalURL []byte, userID []byte) ([]byte, error) {
+	ret := _mock.Called(originalURL, userID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateShort")
@@ -108,18 +116,18 @@ func (_mock *MockService) CreateShort(originalURL []byte) ([]byte, error) {
 
 	var r0 []byte
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func([]byte) ([]byte, error)); ok {
-		return returnFunc(originalURL)
+	if returnFunc, ok := ret.Get(0).(func([]byte, []byte) ([]byte, error)); ok {
+		return returnFunc(originalURL, userID)
 	}
-	if returnFunc, ok := ret.Get(0).(func([]byte) []byte); ok {
-		r0 = returnFunc(originalURL)
+	if returnFunc, ok := ret.Get(0).(func([]byte, []byte) []byte); ok {
+		r0 = returnFunc(originalURL, userID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]byte)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func([]byte) error); ok {
-		r1 = returnFunc(originalURL)
+	if returnFunc, ok := ret.Get(1).(func([]byte, []byte) error); ok {
+		r1 = returnFunc(originalURL, userID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -133,11 +141,79 @@ type MockService_CreateShort_Call struct {
 
 // CreateShort is a helper method to define mock.On call
 //   - originalURL []byte
-func (_e *MockService_Expecter) CreateShort(originalURL interface{}) *MockService_CreateShort_Call {
-	return &MockService_CreateShort_Call{Call: _e.mock.On("CreateShort", originalURL)}
+//   - userID []byte
+func (_e *MockService_Expecter) CreateShort(originalURL interface{}, userID interface{}) *MockService_CreateShort_Call {
+	return &MockService_CreateShort_Call{Call: _e.mock.On("CreateShort", originalURL, userID)}
 }
 
-func (_c *MockService_CreateShort_Call) Run(run func(originalURL []byte)) *MockService_CreateShort_Call {
+func (_c *MockService_CreateShort_Call) Run(run func(originalURL []byte, userID []byte)) *MockService_CreateShort_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 []byte
+		if args[0] != nil {
+			arg0 = args[0].([]byte)
+		}
+		var arg1 []byte
+		if args[1] != nil {
+			arg1 = args[1].([]byte)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockService_CreateShort_Call) Return(bytes []byte, err error) *MockService_CreateShort_Call {
+	_c.Call.Return(bytes, err)
+	return _c
+}
+
+func (_c *MockService_CreateShort_Call) RunAndReturn(run func(originalURL []byte, userID []byte) ([]byte, error)) *MockService_CreateShort_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// FindByUserID provides a mock function for the type MockService
+func (_mock *MockService) FindByUserID(userID []byte) ([]model.LinkRow, error) {
+	ret := _mock.Called(userID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindByUserID")
+	}
+
+	var r0 []model.LinkRow
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func([]byte) ([]model.LinkRow, error)); ok {
+		return returnFunc(userID)
+	}
+	if returnFunc, ok := ret.Get(0).(func([]byte) []model.LinkRow); ok {
+		r0 = returnFunc(userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]model.LinkRow)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func([]byte) error); ok {
+		r1 = returnFunc(userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockService_FindByUserID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindByUserID'
+type MockService_FindByUserID_Call struct {
+	*mock.Call
+}
+
+// FindByUserID is a helper method to define mock.On call
+//   - userID []byte
+func (_e *MockService_Expecter) FindByUserID(userID interface{}) *MockService_FindByUserID_Call {
+	return &MockService_FindByUserID_Call{Call: _e.mock.On("FindByUserID", userID)}
+}
+
+func (_c *MockService_FindByUserID_Call) Run(run func(userID []byte)) *MockService_FindByUserID_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 []byte
 		if args[0] != nil {
@@ -150,12 +226,12 @@ func (_c *MockService_CreateShort_Call) Run(run func(originalURL []byte)) *MockS
 	return _c
 }
 
-func (_c *MockService_CreateShort_Call) Return(bytes []byte, err error) *MockService_CreateShort_Call {
-	_c.Call.Return(bytes, err)
+func (_c *MockService_FindByUserID_Call) Return(linkRows []model.LinkRow, err error) *MockService_FindByUserID_Call {
+	_c.Call.Return(linkRows, err)
 	return _c
 }
 
-func (_c *MockService_CreateShort_Call) RunAndReturn(run func(originalURL []byte) ([]byte, error)) *MockService_CreateShort_Call {
+func (_c *MockService_FindByUserID_Call) RunAndReturn(run func(userID []byte) ([]model.LinkRow, error)) *MockService_FindByUserID_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -291,6 +367,168 @@ func (_c *MockConfig_GetBaseAddress_Call) Return(bytes []byte) *MockConfig_GetBa
 }
 
 func (_c *MockConfig_GetBaseAddress_Call) RunAndReturn(run func() []byte) *MockConfig_GetBaseAddress_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// NewMockDeleteWorker creates a new instance of MockDeleteWorker. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
+// The first argument is typically a *testing.T value.
+func NewMockDeleteWorker(t interface {
+	mock.TestingT
+	Cleanup(func())
+}) *MockDeleteWorker {
+	mock := &MockDeleteWorker{}
+	mock.Mock.Test(t)
+
+	t.Cleanup(func() { mock.AssertExpectations(t) })
+
+	return mock
+}
+
+// MockDeleteWorker is an autogenerated mock type for the DeleteWorker type
+type MockDeleteWorker struct {
+	mock.Mock
+}
+
+type MockDeleteWorker_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *MockDeleteWorker) EXPECT() *MockDeleteWorker_Expecter {
+	return &MockDeleteWorker_Expecter{mock: &_m.Mock}
+}
+
+// AddToQueue provides a mock function for the type MockDeleteWorker
+func (_mock *MockDeleteWorker) AddToQueue(urls []string, userID string) {
+	_mock.Called(urls, userID)
+	return
+}
+
+// MockDeleteWorker_AddToQueue_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AddToQueue'
+type MockDeleteWorker_AddToQueue_Call struct {
+	*mock.Call
+}
+
+// AddToQueue is a helper method to define mock.On call
+//   - urls []string
+//   - userID string
+func (_e *MockDeleteWorker_Expecter) AddToQueue(urls interface{}, userID interface{}) *MockDeleteWorker_AddToQueue_Call {
+	return &MockDeleteWorker_AddToQueue_Call{Call: _e.mock.On("AddToQueue", urls, userID)}
+}
+
+func (_c *MockDeleteWorker_AddToQueue_Call) Run(run func(urls []string, userID string)) *MockDeleteWorker_AddToQueue_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 []string
+		if args[0] != nil {
+			arg0 = args[0].([]string)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockDeleteWorker_AddToQueue_Call) Return() *MockDeleteWorker_AddToQueue_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockDeleteWorker_AddToQueue_Call) RunAndReturn(run func(urls []string, userID string)) *MockDeleteWorker_AddToQueue_Call {
+	_c.Run(run)
+	return _c
+}
+
+// NewMockAuthService creates a new instance of MockAuthService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
+// The first argument is typically a *testing.T value.
+func NewMockAuthService(t interface {
+	mock.TestingT
+	Cleanup(func())
+}) *MockAuthService {
+	mock := &MockAuthService{}
+	mock.Mock.Test(t)
+
+	t.Cleanup(func() { mock.AssertExpectations(t) })
+
+	return mock
+}
+
+// MockAuthService is an autogenerated mock type for the AuthService type
+type MockAuthService struct {
+	mock.Mock
+}
+
+type MockAuthService_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *MockAuthService) EXPECT() *MockAuthService_Expecter {
+	return &MockAuthService_Expecter{mock: &_m.Mock}
+}
+
+// GetUserID provides a mock function for the type MockAuthService
+func (_mock *MockAuthService) GetUserID(ctx context.Context) ([]byte, error) {
+	ret := _mock.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetUserID")
+	}
+
+	var r0 []byte
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context) ([]byte, error)); ok {
+		return returnFunc(ctx)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context) []byte); ok {
+		r0 = returnFunc(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = returnFunc(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockAuthService_GetUserID_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUserID'
+type MockAuthService_GetUserID_Call struct {
+	*mock.Call
+}
+
+// GetUserID is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockAuthService_Expecter) GetUserID(ctx interface{}) *MockAuthService_GetUserID_Call {
+	return &MockAuthService_GetUserID_Call{Call: _e.mock.On("GetUserID", ctx)}
+}
+
+func (_c *MockAuthService_GetUserID_Call) Run(run func(ctx context.Context)) *MockAuthService_GetUserID_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MockAuthService_GetUserID_Call) Return(bytes []byte, err error) *MockAuthService_GetUserID_Call {
+	_c.Call.Return(bytes, err)
+	return _c
+}
+
+func (_c *MockAuthService_GetUserID_Call) RunAndReturn(run func(ctx context.Context) ([]byte, error)) *MockAuthService_GetUserID_Call {
 	_c.Call.Return(run)
 	return _c
 }

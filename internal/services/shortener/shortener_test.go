@@ -13,11 +13,13 @@ func TestService(t *testing.T) {
 	var (
 		service    *Service
 		repository *MockLinkRepository
+		userID     []byte
 	)
 
 	setup := func(t *testing.T) {
 		repository = NewMockLinkRepository(t)
 		service = New(repository)
+		userID = []byte("userID")
 	}
 
 	t.Run(
@@ -74,10 +76,10 @@ func TestService(t *testing.T) {
 					setup(t)
 
 					repository.EXPECT().Save(
-						originalURL, mock.Anything,
+						originalURL, mock.Anything, userID,
 					).Return(nil)
 
-					_, err := service.CreateShort(originalURL)
+					_, err := service.CreateShort(originalURL, userID)
 
 					require.NoError(t, err)
 				},
@@ -88,9 +90,9 @@ func TestService(t *testing.T) {
 					setup(t)
 
 					testError := assert.AnError
-					repository.EXPECT().Save(originalURL, mock.Anything).Return(testError)
+					repository.EXPECT().Save(originalURL, mock.Anything, userID).Return(testError)
 
-					_, err := service.CreateShort(originalURL)
+					_, err := service.CreateShort(originalURL, userID)
 
 					require.Error(t, err)
 					assert.Equal(t, testError, err)
@@ -119,10 +121,10 @@ func TestService(t *testing.T) {
 								return value[0].OriginalURL == values[0].OriginalURL &&
 									value[1].OriginalURL == values[1].OriginalURL
 							},
-						),
+						), userID,
 					).Return(nil)
 
-					res, err := service.CreateMany(values)
+					res, err := service.CreateMany(values, userID)
 
 					require.NoError(t, err)
 					assert.Equal(t, result[0].CorrelationId, res[0].CorrelationID)
@@ -135,9 +137,84 @@ func TestService(t *testing.T) {
 					setup(t)
 
 					testError := assert.AnError
-					repository.EXPECT().SaveMany(mock.Anything).Return(testError)
+					repository.EXPECT().SaveMany(mock.Anything, userID).Return(testError)
 
-					_, err := service.CreateMany(values)
+					_, err := service.CreateMany(values, userID)
+
+					require.Error(t, err)
+					assert.Equal(t, testError, err)
+				},
+			)
+		},
+	)
+
+	t.Run(
+		"Тест FindByUserID", func(t *testing.T) {
+			ID := []byte("ID")
+			result := []model.LinkRow{
+				{
+					UserID:      "id",
+					OriginalURL: "original",
+					ShortURL:    "short",
+					ID:          "id",
+				},
+			}
+			t.Run(
+				"Должен выполниться без ошибок", func(t *testing.T) {
+					setup(t)
+
+					repository.EXPECT().FindByUserID(ID).Return(result, nil)
+
+					res, err := service.FindByUserID(ID)
+
+					require.NoError(t, err)
+					assert.Equal(t, result, res)
+				},
+			)
+
+			t.Run(
+				"Ошибка получения ссылки", func(t *testing.T) {
+					setup(t)
+
+					testError := assert.AnError
+					repository.EXPECT().FindByUserID(ID).Return(nil, testError)
+
+					_, err := service.FindByUserID(ID)
+
+					require.Error(t, err)
+					assert.Equal(t, testError, err)
+				},
+			)
+		},
+	)
+
+	t.Run(
+		"Тест Delete", func(t *testing.T) {
+			linksToDelete := []*model.LinkToDelete{
+				{Link: "1", UserID: string(userID)},
+				{Link: "2", UserID: string(userID)},
+			}
+
+			t.Run(
+				"Должен выполниться без ошибок", func(t *testing.T) {
+					setup(t)
+
+					repository.EXPECT().Delete(linksToDelete).Return(nil)
+
+					err := service.Delete(linksToDelete)
+
+					require.NoError(t, err)
+				},
+			)
+
+			t.Run(
+				"Ошибка репозитория", func(t *testing.T) {
+					setup(t)
+
+					testError := assert.AnError
+					repository.EXPECT().Delete(mock.Anything).Return(testError)
+
+					err := service.Delete(linksToDelete)
 
 					require.Error(t, err)
 					assert.Equal(t, testError, err)
