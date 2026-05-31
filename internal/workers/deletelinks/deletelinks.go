@@ -1,4 +1,4 @@
-package delete_links_worker
+package deletelinks
 
 import (
 	"context"

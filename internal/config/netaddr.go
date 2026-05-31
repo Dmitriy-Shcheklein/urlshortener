@@ -18,11 +18,6 @@ func NewNetAddress() *NetAddress {
 	port := 8080
 	netAddress := &NetAddress{Host: "localhost", Port: port}
 
-	if serverAddress := os.Getenv("SERVER_ADDRESS"); serverAddress != "" {
-		if err := netAddress.Set(serverAddress); err != nil {
-			log.Fatalf("error while set SERVER_ADDRESS env: %s", err)
-		}
-	}
 	flag.Var(netAddress, "a", "Net address host:port")
 
 	return netAddress
@@ -44,8 +39,8 @@ func (a *NetAddress) String() string {
 
 func (a *NetAddress) Set(s string) error {
 	hp := strings.Split(s, ":")
-	validLenght := 2
-	if len(hp) != validLenght {
+	validLength := 2
+	if len(hp) != validLength {
 		return errors.New("need address in a form host:port")
 	}
 	port, err := strconv.Atoi(hp[1])

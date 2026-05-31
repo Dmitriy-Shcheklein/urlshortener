@@ -4,13 +4,13 @@ import (
 	"context"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config"
-	pool "github.com/Dmitriy-Shcheklein/urlshortener/internal/config/db/postgres"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/handler/shortener"
+	pool "github.com/Dmitriy-Shcheklein/urlshortener/internal/infrastructure/postgres"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/middlewares"
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/file_storage"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/fs"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/postgres"
 	shService "github.com/Dmitriy-Shcheklein/urlshortener/internal/services/shortener"
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/workers/delete_links_worker"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/workers/deletelinks"
 	"github.com/go-chi/chi"
 )
 
@@ -28,11 +28,11 @@ func InitShortener(ctx context.Context, cfg *config.Config, pool *pool.Pool, rou
 		}
 		repository = postgresRepo
 	} else {
-		repository = file_storage.New(cfg)
+		repository = fs.New(cfg)
 	}
 
 	svc := shService.New(repository)
-	deleteWorker := delete_links_worker.New(svc)
+	deleteWorker := deletelinks.New(svc)
 
 	handler, err := shortener.New(svc, cfg, deleteWorker, middlewares.NewAuthService())
 	if err != nil {

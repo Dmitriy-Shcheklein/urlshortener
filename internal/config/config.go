@@ -3,21 +3,17 @@ package config
 import (
 	"flag"
 	"strconv"
-
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config/db/postgres"
 )
 
 type Config struct {
-	Port            int
-	Host            string
-	BaseAddress     []byte
-	FileStoragePath string
-	DbDSN           DbDSN
-}
-
-type DbDSN struct {
-	Value   string
-	IsValid bool
+	port            int
+	host            string
+	baseAddress     []byte
+	fileStoragePath string
+	dbDSN           string
+	auditFilePath   string
+	auditUrl        string
+	salt            string
 }
 
 type FromEnv struct {
@@ -29,34 +25,56 @@ func New() (*Config, error) {
 	netAddress := NewNetAddress()
 	baseAddress := NewBaseAddress()
 	fileStoragePath := NewFileStoragePath()
-	dsn := postgres.NewDSN()
+	dsn := NewDSN()
+	auditFile := NewAuditFilePath()
+	auditUrl := NewAuditUrl()
+	salt := NewSalt()
 	flag.Parse()
 	netAddress.ApplyEnv()
 	baseAddress.ApplyEnv()
 	fileStoragePath.ApplyEnv()
 	dsn.ApplyEnv()
+	auditFile.ApplyEnv()
+	auditUrl.ApplyEnv()
+	salt.ApplyEnv()
 
 	cfg := Config{
-		Host:            netAddress.Host,
-		Port:            netAddress.Port,
-		FileStoragePath: fileStoragePath.Path,
-	}
-
-	if dsn.Value != "" {
-		cfg.DbDSN = DbDSN{Value: dsn.Value, IsValid: true}
+		host:            netAddress.Host,
+		port:            netAddress.Port,
+		fileStoragePath: fileStoragePath.Path,
+		auditFilePath:   auditFile.Path,
+		dbDSN:           dsn.Value,
+		auditUrl:        auditUrl.String(),
+		salt:            salt.String(),
 	}
 
 	if baseAddress.IsFulfilled() {
-		cfg.BaseAddress = []byte(baseAddress.Protocol + ":" + baseAddress.Host + ":" + strconv.Itoa(baseAddress.Port))
+		cfg.baseAddress = []byte(baseAddress.Protocol + ":" + baseAddress.Host + ":" + strconv.Itoa(baseAddress.Port))
 	}
 
 	return &cfg, nil
 }
 
 func (c *Config) GetNetAddress() string {
-	return c.Host + ":" + strconv.Itoa(c.Port)
+	return c.host + ":" + strconv.Itoa(c.port)
 }
 
 func (c *Config) GetBaseAddress() []byte {
-	return c.BaseAddress
+	return c.baseAddress
+}
+
+func (c *Config) GetFSPath() string {
+	return c.fileStoragePath
+}
+
+func (c *Config) GetDSN() string {
+	return c.dbDSN
+}
+
+func (c *Config) GetAuditUrl() string {
+	return c.auditUrl
+}
+
+func (c *Config) GetSalt() []byte {
+	return []byte(c.salt)
 }

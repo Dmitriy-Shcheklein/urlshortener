@@ -7,8 +7,7 @@ import (
 )
 
 type FileStoragePath struct {
-	Path      string
-	IsFromEnv bool
+	Path string
 }
 
 func NewFileStoragePath() *FileStoragePath {
@@ -34,10 +33,6 @@ func (f *FileStoragePath) String() string {
 }
 
 func (f *FileStoragePath) Set(s string) error {
-	if f.IsFromEnv {
-		return nil
-	}
-
 	f.Path = s
 	return nil
 }

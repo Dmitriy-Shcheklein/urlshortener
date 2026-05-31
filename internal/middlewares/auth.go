@@ -8,12 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 )
-
-var secretKey = []byte("secret_key")
 
 type Claims struct {
 	jwt.RegisteredClaims
@@ -28,31 +25,31 @@ var tokenExp = time.Hour
 
 var errInvalidUserFormat = errors.New("invalid user format")
 
-func Auth(h http.Handler) http.Handler {
+func (a *AppMiddleware) Auth(h http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie("auth")
 			if errors.Is(err, http.ErrNoCookie) {
-				newCookie, gErr := generateNewCookie()
+				newCookie, gErr := a.generateNewCookie()
 				if gErr != nil {
-					logger.Logger.Error().Err(err).Msg("error while generate cookie")
+					a.logger.Error().Err(err).Msg("error while generate cookie")
 					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				}
 				http.SetCookie(w, newCookie)
-				claims, cErr := getClaims(newCookie)
+				claims, cErr := a.getClaims(newCookie)
 				if cErr != nil {
-					logger.Logger.Error().Err(err).Msg("error while getting claims")
+					a.logger.Error().Err(err).Msg("error while getting claims")
 					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				}
 				h.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userToken, *claims)))
 				return
 			} else if err != nil {
-				logger.Logger.Error().Err(err).Msg("error while getting cookie")
+				a.logger.Error().Err(err).Msg("error while getting cookie")
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
 
-			withCtx, err := verifyToken(r, cookie)
+			withCtx, err := a.verifyToken(r, cookie)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusUnauthorized)
 				return
@@ -62,8 +59,8 @@ func Auth(h http.Handler) http.Handler {
 	)
 }
 
-func generateNewCookie() (*http.Cookie, error) {
-	token, err := buildJWTString()
+func (a *AppMiddleware) generateNewCookie() (*http.Cookie, error) {
+	token, err := a.buildJWTString()
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +75,7 @@ func generateNewCookie() (*http.Cookie, error) {
 	}, nil
 }
 
-func verifyToken(r *http.Request, cookie *http.Cookie) (*http.Request, error) {
+func (a *AppMiddleware) verifyToken(r *http.Request, cookie *http.Cookie) (*http.Request, error) {
 	parts := strings.Split(cookie.Value, ".")
 	if len(parts) != 3 {
 		return r, fmt.Errorf("%w: invalid token format", errInvalidUserFormat)
@@ -87,7 +84,7 @@ func verifyToken(r *http.Request, cookie *http.Cookie) (*http.Request, error) {
 	claims := &Claims{}
 	if _, err := jwt.ParseWithClaims(
 		cookie.Value, claims, func(t *jwt.Token) (interface{}, error) {
-			return secretKey, nil
+			return a.cfg.GetSalt(), nil
 		},
 	); err != nil {
 		return r, err
@@ -96,11 +93,11 @@ func verifyToken(r *http.Request, cookie *http.Cookie) (*http.Request, error) {
 	return r.WithContext(ctx), nil
 }
 
-func getClaims(cookie *http.Cookie) (*Claims, error) {
+func (a *AppMiddleware) getClaims(cookie *http.Cookie) (*Claims, error) {
 	claims := &Claims{}
 	if _, err := jwt.ParseWithClaims(
 		cookie.Value, claims, func(t *jwt.Token) (interface{}, error) {
-			return secretKey, nil
+			return a.cfg.GetSalt(), nil
 		},
 	); err != nil {
 		return nil, err
@@ -108,7 +105,7 @@ func getClaims(cookie *http.Cookie) (*Claims, error) {
 	return claims, nil
 }
 
-func buildJWTString() (string, error) {
+func (a *AppMiddleware) buildJWTString() (string, error) {
 	token := jwt.NewWithClaims(
 		jwt.SigningMethodHS256, Claims{
 			RegisteredClaims: jwt.RegisteredClaims{
@@ -118,7 +115,7 @@ func buildJWTString() (string, error) {
 		},
 	)
 
-	tokenString, err := token.SignedString(secretKey)
+	tokenString, err := token.SignedString(a.cfg.GetSalt())
 	if err != nil {
 		return "", err
 	}

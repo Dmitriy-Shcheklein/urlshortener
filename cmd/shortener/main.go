@@ -13,7 +13,7 @@ import (
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/bootstrap"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config"
-	pool "github.com/Dmitriy-Shcheklein/urlshortener/internal/config/db/postgres"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/infrastructure/postgres"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/middlewares"
 	"github.com/go-chi/chi"
@@ -30,21 +30,23 @@ func main() {
 	}
 
 	logger.InitLogger(zerolog.InfoLevel)
+	appMiddleware := middlewares.NewAppMiddleware(logger.Logger, cfg)
 
 	router := chi.NewRouter()
-	router.Use(middleware.RequestID)
-	router.Use(middleware.RealIP)
-	router.Use(middlewares.WithLogging)
-	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(time.Minute))
-	router.Use(middlewares.WithGzip)
-	router.Use(middlewares.Auth)
+	router.Use(appMiddleware.WithGzip)
+	router.Use(appMiddleware.Auth)
+	router.Use(appMiddleware.WithLogging)
+	router.Use(middleware.RealIP)
+	router.Use(middleware.RequestID)
+	router.Use(middleware.Recoverer)
 
-	var dbPool *pool.Pool
+	var dbPool *postgres.Pool
 
-	if cfg.DbDSN.IsValid {
-		dbPool, err = pool.NewPool(cfg.DbDSN.Value)
-		if err != nil && cfg.DbDSN.IsValid {
+	dsnValue := cfg.GetDSN()
+	if dsnValue != "" {
+		dbPool, err = postgres.NewPool(dsnValue)
+		if err != nil {
 			log.Fatalf("error while creating pool: %s", err)
 		}
 		defer func() {
@@ -52,7 +54,7 @@ func main() {
 				dbPool.Stop()
 			}
 		}()
-		if err = bootstrap.RunMigration(cfg.DbDSN.Value); err != nil {
+		if err = bootstrap.RunMigration(dsnValue); err != nil {
 			log.Fatalf("error while execute migrations: %s", err)
 		}
 		if err = bootstrap.InitHealthcheck(cfg, dbPool, router); err != nil {

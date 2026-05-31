@@ -1,4 +1,4 @@
-package file_storage
+package fs
 
 import (
 	"bufio"
@@ -7,22 +7,25 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
-type Repository struct {
-	cfg *config.Config
+type Config interface {
+	GetFSPath() string
 }
 
-func New(cfg *config.Config) *Repository {
+type Repository struct {
+	cfg Config
+}
+
+func New(cfg Config) *Repository {
 	return &Repository{cfg: cfg}
 }
 
 func (r *Repository) GetByID(id string) ([]byte, error) {
-	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY|os.O_CREATE, 0o600)
+	file, err := os.OpenFile(r.cfg.GetFSPath(), os.O_RDONLY|os.O_CREATE, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +60,7 @@ func (r *Repository) Save(originalURL []byte, short []byte, userID []byte) error
 		UserID:      string(userID),
 	}
 
-	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
+	file, err := os.OpenFile(r.cfg.GetFSPath(), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
 	if err != nil {
 		return err
 	}
@@ -74,7 +77,7 @@ func (r *Repository) Save(originalURL []byte, short []byte, userID []byte) error
 }
 
 func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
-	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
+	file, err := os.OpenFile(r.cfg.GetFSPath(), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
 	if err != nil {
 		return err
 	}
@@ -98,7 +101,7 @@ func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 }
 
 func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
-	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY|os.O_CREATE, 0o600)
+	file, err := os.OpenFile(r.cfg.GetFSPath(), os.O_RDONLY|os.O_CREATE, 0o600)
 	if err != nil {
 		return []model.LinkRow{}, err
 	}
@@ -129,7 +132,7 @@ func (r *Repository) Delete(in []*model.LinkToDelete) error {
 		return nil
 	}
 
-	file, err := os.OpenFile(r.cfg.FileStoragePath, os.O_RDONLY|os.O_CREATE|os.O_APPEND, 0o600)
+	file, err := os.OpenFile(r.cfg.GetFSPath(), os.O_RDONLY|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
 	}
@@ -163,11 +166,11 @@ func (r *Repository) Delete(in []*model.LinkToDelete) error {
 		return err
 	}
 
-	if err = os.Remove(r.cfg.FileStoragePath); err != nil {
+	if err = os.Remove(r.cfg.GetFSPath()); err != nil {
 		return err
 	}
 
-	newFile, err := os.OpenFile(r.cfg.FileStoragePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
+	newFile, err := os.OpenFile(r.cfg.GetFSPath(), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
 	if err != nil {
 		return err
 	}

@@ -2,7 +2,7 @@
 // github.com/vektra/mockery
 // template: testify
 
-package delete_links_worker
+package deletelinks
 
 import (
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"

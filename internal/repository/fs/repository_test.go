@@ -1,10 +1,9 @@
-package file_storage
+package fs
 
 import (
 	"os"
 	"testing"
 
-	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
@@ -23,9 +22,7 @@ func TestFindByUserID(t *testing.T) {
 			log.Err(err)
 		}
 	}()
-	cfg := &config.Config{
-		FileStoragePath: tmpFile.Name(),
-	}
+	cfg := NewMockConfig(t)
 
 	repo := New(cfg)
 
@@ -53,6 +50,7 @@ func TestFindByUserID(t *testing.T) {
 		UserID:      userID2,
 	}
 
+	cfg.EXPECT().GetFSPath().Return(tmpFile.Name())
 	err = repo.Save([]byte(link1.OriginalURL), []byte(link1.ShortURL), []byte(link1.UserID))
 	require.NoError(t, err)
 
@@ -83,13 +81,13 @@ func TestFindByUserID_Empty(t *testing.T) {
 		}
 	}()
 
-	cfg := &config.Config{
-		FileStoragePath: tmpFile.Name(),
-	}
+	cfg := NewMockConfig(t)
 
 	repo := New(cfg)
 
 	userID := uuid.NewString()
+
+	cfg.EXPECT().GetFSPath().Return(tmpFile.Name())
 
 	results, err := repo.FindByUserID([]byte(userID))
 	require.NoError(t, err)
@@ -131,12 +129,11 @@ func TestRepository_Delete(t *testing.T) {
 				}
 			}()
 
-			cfg := &config.Config{
-				FileStoragePath: tmpFile.Name(),
-			}
+			cfg := NewMockConfig(t)
 
 			repo := New(cfg)
 
+			cfg.EXPECT().GetFSPath().Return(tmpFile.Name())
 			err = repo.Save([]byte(link1.OriginalURL), []byte(link1.ShortURL), []byte(link1.UserID))
 			err = repo.Save([]byte(link2.OriginalURL), []byte(link2.ShortURL), []byte(link2.UserID))
 			err = repo.Save([]byte(link3.OriginalURL), []byte(link3.ShortURL), []byte(link3.UserID))
@@ -176,12 +173,11 @@ func TestRepository_Delete(t *testing.T) {
 				}
 			}()
 
-			cfg := &config.Config{
-				FileStoragePath: tmpFile.Name(),
-			}
+			cfg := NewMockConfig(t)
 
 			repo := New(cfg)
 
+			cfg.EXPECT().GetFSPath().Return(tmpFile.Name())
 			err = repo.Save([]byte(link1.OriginalURL), []byte(link1.ShortURL), []byte(link1.UserID))
 			require.NoError(t, err)
 
@@ -214,12 +210,11 @@ func TestRepository_Delete(t *testing.T) {
 				}
 			}()
 
-			cfg := &config.Config{
-				FileStoragePath: tmpFile.Name(),
-			}
+			cfg := NewMockConfig(t)
 
 			repo := New(cfg)
 
+			cfg.EXPECT().GetFSPath().Return(tmpFile.Name())
 			err = repo.Save([]byte(link1.OriginalURL), []byte(link1.ShortURL), []byte(link1.UserID))
 			require.NoError(t, err)
 

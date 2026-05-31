@@ -5,7 +5,6 @@ import (
 	"net/http"
 )
 
-//go:generate minimock -i Service -o handler_mock_test.go
 type Service interface {
 	PingDB() error
 }

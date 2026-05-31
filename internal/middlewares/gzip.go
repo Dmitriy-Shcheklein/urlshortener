@@ -19,7 +19,7 @@ func (w gzipWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
-func WithGzip(h http.Handler) http.Handler {
+func (a *AppMiddleware) WithGzip(h http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			isAcceptEncoding := strings.Contains(r.Header.Get("Accept-Encoding"), "gzip")
@@ -63,19 +63,24 @@ func WithGzip(h http.Handler) http.Handler {
 			}
 
 			if isContentEncoding {
-				decompressRequest(w, r)
+				a.decompressRequest(w, r)
 			}
 			h.ServeHTTP(responseWriter, r)
 		},
 	)
 }
 
-func decompressRequest(w http.ResponseWriter, r *http.Request) {
+func (a *AppMiddleware) decompressRequest(w http.ResponseWriter, r *http.Request) {
 	gzReader, err := gzip.NewReader(r.Body)
 	if err != nil {
 		http.Error(w, "error while read gzip", http.StatusBadRequest)
 		return
 	}
+	defer func() {
+		if err = gzReader.Close(); err != nil {
+			a.logger.Error().Err(err).Msg("error while close gzReader")
+		}
+	}()
 
 	decompressed, err := io.ReadAll(gzReader)
 	if err != nil {
@@ -83,7 +88,7 @@ func decompressRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err = r.Body.Close(); err != nil {
-		logger.Logger.Error().Err(err).Msg("error while clode rea")
+		logger.Logger.Error().Err(err).Msg("error while close body reader")
 	}
 	if err = gzReader.Close(); err != nil {
 		logger.Logger.Error().Err(err).Msg("error while close gzip reader")
