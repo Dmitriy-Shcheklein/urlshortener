@@ -30,6 +30,7 @@ func main() {
 	}
 
 	logger.InitLogger(zerolog.InfoLevel)
+
 	appMiddleware := middlewares.NewAppMiddleware(logger.Logger, cfg)
 
 	router := chi.NewRouter()

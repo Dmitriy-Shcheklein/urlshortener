@@ -30,8 +30,9 @@ func TestNew(t *testing.T) {
 	config := NewMockConfig(t)
 	deleteWorker := NewMockDeleteWorker(t)
 	auth := NewMockAuthService(t)
+	auditor := NewMockAuditor(t)
 
-	handler, _ := New(service, config, deleteWorker, auth)
+	handler, _ := New(service, config, deleteWorker, auth, auditor)
 	assert.NotNil(t, handler)
 	assert.NotNil(t, handler.service)
 	assert.NotNil(t, handler.deleteWorker)
@@ -42,26 +43,32 @@ func TestNew(t *testing.T) {
 func TestNewErrors(t *testing.T) {
 	t.Run(
 		"Ошибка, сервис не инициализирован", func(t *testing.T) {
-			_, err := New(nil, NewMockConfig(t), NewMockDeleteWorker(t), NewMockAuthService(t))
+			_, err := New(nil, NewMockConfig(t), NewMockDeleteWorker(t), NewMockAuthService(t), NewMockAuditor(t))
 			assert.Equal(t, errors.New("handler service must be not nil"), err)
 		},
 	)
 	t.Run(
 		"Ошибка, конфиг не инициализирован", func(t *testing.T) {
-			_, err := New(NewMockService(t), nil, NewMockDeleteWorker(t), NewMockAuthService(t))
+			_, err := New(NewMockService(t), nil, NewMockDeleteWorker(t), NewMockAuthService(t), NewMockAuditor(t))
 			assert.Equal(t, errors.New("handler config must be not nil"), err)
 		},
 	)
 	t.Run(
 		"Ошибка, deleteWorker не инициализирован", func(t *testing.T) {
-			_, err := New(NewMockService(t), NewMockConfig(t), nil, NewMockAuthService(t))
+			_, err := New(NewMockService(t), NewMockConfig(t), nil, NewMockAuthService(t), NewMockAuditor(t))
 			assert.Equal(t, errors.New("deleteWorker must be not nil"), err)
 		},
 	)
 	t.Run(
 		"Ошибка, auth не инициализирован", func(t *testing.T) {
-			_, err := New(NewMockService(t), NewMockConfig(t), NewMockDeleteWorker(t), nil)
+			_, err := New(NewMockService(t), NewMockConfig(t), NewMockDeleteWorker(t), nil, NewMockAuditor(t))
 			assert.Equal(t, errors.New("authService must be not nil"), err)
+		},
+	)
+	t.Run(
+		"Ошибка, auditor не инициализирован", func(t *testing.T) {
+			_, err := New(NewMockService(t), NewMockConfig(t), NewMockDeleteWorker(t), NewMockAuthService(t), nil)
+			assert.Equal(t, errors.New("auditor must be not nil"), err)
 		},
 	)
 }
@@ -77,6 +84,7 @@ func TestGetById(t *testing.T) {
 		path         string
 		deleteWorker *MockDeleteWorker
 		auth         *MockAuthService
+		auditor      *MockAuditor
 	)
 
 	setup := func(t *testing.T) {
@@ -88,7 +96,8 @@ func TestGetById(t *testing.T) {
 		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
 		auth = NewMockAuthService(t)
-		handler, _ = New(service, config, deleteWorker, auth)
+		auditor = NewMockAuditor(t)
+		handler, _ = New(service, config, deleteWorker, auth, auditor)
 		logger.Logger = new(zerolog.Nop())
 	}
 
@@ -96,7 +105,9 @@ func TestGetById(t *testing.T) {
 		"Должен выполниться без ошибок", func(t *testing.T) {
 			setup(t)
 
+			var expectedPtr *string = nil
 			service.EXPECT().GetByID(path).Return(fullLink, nil)
+			auditor.EXPECT().Audit(expectedPtr, "follow", "fullLink")
 
 			handler.GetByID(writer, request)
 
@@ -112,7 +123,9 @@ func TestGetById(t *testing.T) {
 		"Должен установить заголовки ответа", func(t *testing.T) {
 			setup(t)
 
+			var expectedPtr *string = nil
 			service.EXPECT().GetByID(path).Return(fullLink, nil)
+			auditor.EXPECT().Audit(expectedPtr, "follow", "fullLink")
 
 			handler.GetByID(writer, request)
 
@@ -175,6 +188,7 @@ func TestCreateShort(t *testing.T) {
 		baseAddress  []byte
 		userID       []byte
 		auth         *MockAuthService
+		auditor      *MockAuditor
 	)
 
 	logger.InitLogger(zerolog.Disabled)
@@ -192,8 +206,9 @@ func TestCreateShort(t *testing.T) {
 		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
 		auth = NewMockAuthService(t)
+		auditor = NewMockAuditor(t)
 
-		handler, _ = New(service, config, deleteWorker, auth)
+		handler, _ = New(service, config, deleteWorker, auth, auditor)
 	}
 
 	t.Run(
@@ -203,6 +218,7 @@ func TestCreateShort(t *testing.T) {
 			service.EXPECT().CreateShort([]byte(fullLink), userID).Return(shortLink, nil)
 			config.EXPECT().GetBaseAddress().Return(baseAddress)
 			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
+			auditor.EXPECT().Audit(mock.Anything, "shorten", "https://ya.ru")
 
 			assert.NotPanics(
 				t, func() {
@@ -228,6 +244,7 @@ func TestCreateShort(t *testing.T) {
 				service.EXPECT().CreateShort([]byte(fullLink), userID).Return(shortLink, nil)
 				config.EXPECT().GetBaseAddress().Return(test.baseAddress)
 				auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
+				auditor.EXPECT().Audit(mock.Anything, "shorten", "https://ya.ru")
 
 				handler.CreateShort(writer, request)
 
@@ -326,6 +343,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 		baseAddress  []byte
 		userID       []byte
 		auth         *MockAuthService
+		auditor      *MockAuditor
 	)
 
 	setup := func(t *testing.T) {
@@ -341,9 +359,10 @@ func TestCreateFromJSONBody(t *testing.T) {
 		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
 		auth = NewMockAuthService(t)
+		auditor = NewMockAuditor(t)
 		logger.Logger = new(zerolog.Nop())
 
-		handler, _ = New(service, config, deleteWorker, auth)
+		handler, _ = New(service, config, deleteWorker, auth, auditor)
 	}
 
 	t.Run(
@@ -353,6 +372,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 			service.EXPECT().CreateShort([]byte(fullLink), userID).Return(shortLink, nil)
 			config.EXPECT().GetBaseAddress().Return(baseAddress)
 			auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
+			auditor.EXPECT().Audit(mock.Anything, "shorten", "https://practicum.yandex.ru")
 
 			assert.NotPanics(
 				t, func() {
@@ -378,6 +398,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 				service.EXPECT().CreateShort([]byte(fullLink), userID).Return(shortLink, nil)
 				config.EXPECT().GetBaseAddress().Return(test.baseAddress)
 				auth.EXPECT().GetUserID(mock.Anything).Return(userID, nil)
+				auditor.EXPECT().Audit(mock.Anything, "shorten", "https://practicum.yandex.ru")
 
 				handler.CreateFromJSONBody(writer, request)
 
@@ -476,6 +497,7 @@ func TestCreateMany(t *testing.T) {
 		baseAddress  []byte
 		userID       []byte
 		auth         *MockAuthService
+		auditor      *MockAuditor
 	)
 
 	setup := func(t *testing.T) {
@@ -491,8 +513,9 @@ func TestCreateMany(t *testing.T) {
 		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
 		auth = NewMockAuthService(t)
+		auditor = NewMockAuditor(t)
 
-		handler, _ = New(service, config, deleteWorker, auth)
+		handler, _ = New(service, config, deleteWorker, auth, auditor)
 		logger.Logger = new(zerolog.Nop())
 	}
 
@@ -609,6 +632,7 @@ func TestHandler_GetByUserID(t *testing.T) {
 		urls         []model.LinkRow
 		baseAddress  []byte
 		auth         *MockAuthService
+		auditor      *MockAuditor
 	)
 
 	setup := func(t *testing.T) {
@@ -636,7 +660,8 @@ func TestHandler_GetByUserID(t *testing.T) {
 		deleteWorker = NewMockDeleteWorker(t)
 		config = NewMockConfig(t)
 		auth = NewMockAuthService(t)
-		handler, _ = New(service, config, deleteWorker, auth)
+		auditor = NewMockAuditor(t)
+		handler, _ = New(service, config, deleteWorker, auth, auditor)
 		logger.Logger = new(zerolog.Nop())
 	}
 
@@ -716,6 +741,7 @@ func TestHandler_DeleteLinks(t *testing.T) {
 		urls         []string
 		path         string
 		auth         *MockAuthService
+		auditor      *MockAuditor
 	)
 
 	setup := func(t *testing.T) {
@@ -732,8 +758,8 @@ func TestHandler_DeleteLinks(t *testing.T) {
 		service = NewMockService(t)
 		config = NewMockConfig(t)
 		auth = NewMockAuthService(t)
-		handler, _ = New(service, config, deleteWorker, auth)
-		logger.Logger = new(zerolog.Nop())
+		auditor = NewMockAuditor(t)
+		handler, _ = New(service, config, deleteWorker, auth, auditor)
 	}
 
 	t.Run(

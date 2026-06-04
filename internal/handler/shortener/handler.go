@@ -34,11 +34,16 @@ type AuthService interface {
 	GetUserID(ctx context.Context) ([]byte, error)
 }
 
+type Auditor interface {
+	Audit(userID *string, action string, URL string)
+}
+
 type Handler struct {
 	service      Service
 	config       Config
 	deleteWorker DeleteWorker
 	authSvc      AuthService
+	auditor      Auditor
 }
 
 type CreateShortBody struct {
@@ -52,7 +57,9 @@ type FindByUserIDResponse struct {
 	OriginalURL string `json:"original_url"`
 }
 
-func New(service Service, config Config, deleteWorker DeleteWorker, authService AuthService) (*Handler, error) {
+func New(service Service, config Config, deleteWorker DeleteWorker, authService AuthService, auditor Auditor) (
+	*Handler, error,
+) {
 	if service == nil {
 		return &Handler{}, errors.New("handler service must be not nil")
 	}
@@ -65,8 +72,13 @@ func New(service Service, config Config, deleteWorker DeleteWorker, authService 
 	if authService == nil {
 		return &Handler{}, errors.New("authService must be not nil")
 	}
+	if auditor == nil {
+		return &Handler{}, errors.New("auditor must be not nil")
+	}
 
-	return &Handler{service: service, config: config, deleteWorker: deleteWorker, authSvc: authService}, nil
+	return &Handler{
+		service: service, config: config, deleteWorker: deleteWorker, authSvc: authService, auditor: auditor,
+	}, nil
 }
 
 func (h *Handler) GetByID(writer http.ResponseWriter, request *http.Request) {
@@ -91,6 +103,7 @@ func (h *Handler) GetByID(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Add("Content-Type", "text/plain")
 	writer.Header().Add("Location", string(link))
 	writer.WriteHeader(http.StatusTemporaryRedirect)
+	h.auditor.Audit(nil, "follow", string(link))
 }
 
 func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request) {
@@ -122,7 +135,7 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 	headers := map[string]string{"Content-Type": "text/plain"}
 	if conflictError, ok := errors.AsType[*postgres.ConflictError](err); ok {
 		prepareResponse(
-			writer, headers, http.StatusConflict, h.prepareRequest(request.Host, conflictError.Shorten),
+			writer, headers, http.StatusConflict, h.prepareURL(request.Host, conflictError.Shorten),
 		)
 		return
 	}
@@ -132,8 +145,9 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
-	result := h.prepareRequest(request.Host, short)
+	result := h.prepareURL(request.Host, short)
 	prepareResponse(writer, headers, http.StatusCreated, result)
+	h.auditor.Audit(new(string(userID)), "shorten", string(body))
 }
 
 func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.Request) {
@@ -172,6 +186,7 @@ func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.R
 		return
 	}
 	h.prepareJSONResponse(writer, request.Host, short, http.StatusCreated, headers)
+	h.auditor.Audit(new(string(userID)), "shorten", body.URL)
 }
 
 func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) {
@@ -224,7 +239,7 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 	}
 
 	for i := range shorts {
-		res := h.prepareRequest(request.Host, []byte(shorts[i].ShortURL))
+		res := h.prepareURL(request.Host, []byte(shorts[i].ShortURL))
 		shorts[i].ShortURL = string(res)
 	}
 
@@ -310,7 +325,7 @@ func (h *Handler) DeleteLinks(w http.ResponseWriter, r *http.Request) {
 	prepareResponse(w, make(map[string]string), http.StatusAccepted, []byte{})
 }
 
-func (h *Handler) prepareRequest(host string, short []byte) []byte {
+func (h *Handler) prepareURL(host string, short []byte) []byte {
 	var result []byte
 	if len(h.config.GetBaseAddress()) != 0 {
 		result = append(h.config.GetBaseAddress(), "/"...)
@@ -336,7 +351,7 @@ func (h *Handler) prepareFindByUserIDResponse(
 	var output []FindByUserIDResponse
 	if len(res) != 0 {
 		for _, value := range res {
-			shorten := h.prepareRequest(host, []byte(value.ShortURL))
+			shorten := h.prepareURL(host, []byte(value.ShortURL))
 			output = append(
 				output, FindByUserIDResponse{
 					ShortURL:    string(shorten),
@@ -358,7 +373,7 @@ func (h *Handler) prepareFindByUserIDResponse(
 func (h *Handler) prepareJSONResponse(
 	w http.ResponseWriter, host string, res []byte, status int, headers map[string]string,
 ) {
-	result := h.prepareRequest(host, res)
+	result := h.prepareURL(host, res)
 	response := &CreateShortResponse{
 		Result: string(result),
 	}

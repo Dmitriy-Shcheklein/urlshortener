@@ -1,6 +1,8 @@
 package middlewares
 
-import "github.com/rs/zerolog"
+import (
+	"github.com/rs/zerolog"
+)
 
 type Config interface {
 	GetSalt() []byte

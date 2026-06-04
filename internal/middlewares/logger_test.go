@@ -517,7 +517,6 @@ func TestLoggingResponseWriterIntegration(t *testing.T) {
 
 	t.Run(
 		"Different HTTP methods work correctly", func(t *testing.T) {
-
 			methods := []string{
 				http.MethodGet,
 				http.MethodPost,

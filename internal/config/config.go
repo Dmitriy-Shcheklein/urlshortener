@@ -75,6 +75,10 @@ func (c *Config) GetAuditUrl() string {
 	return c.auditUrl
 }
 
+func (c *Config) GetAuditFilePath() string {
+	return c.auditFilePath
+}
+
 func (c *Config) GetSalt() []byte {
 	return []byte(c.salt)
 }

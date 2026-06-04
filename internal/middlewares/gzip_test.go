@@ -174,7 +174,6 @@ func TestDecompressRequest(t *testing.T) {
 }
 
 func TestWithGzipMiddleware(t *testing.T) {
-
 	t.Run(
 		"Нет gzip заголовков", func(t *testing.T) {
 			setup(t)

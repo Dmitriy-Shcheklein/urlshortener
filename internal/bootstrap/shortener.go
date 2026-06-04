@@ -2,13 +2,19 @@ package bootstrap
 
 import (
 	"context"
+	"net/http"
+	"time"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/config"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/handler/shortener"
 	pool "github.com/Dmitriy-Shcheklein/urlshortener/internal/infrastructure/postgres"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/logger"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/middlewares"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/fs"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/repository/postgres"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/services/auditor"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/services/auditor/fsobserver"
+	"github.com/Dmitriy-Shcheklein/urlshortener/internal/services/auditor/httpobserver"
 	shService "github.com/Dmitriy-Shcheklein/urlshortener/internal/services/shortener"
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/workers/deletelinks"
 	"github.com/go-chi/chi"
@@ -30,11 +36,22 @@ func InitShortener(ctx context.Context, cfg *config.Config, pool *pool.Pool, rou
 	} else {
 		repository = fs.New(cfg)
 	}
+	appAuditor := auditor.NewAuditor(logger.Logger)
+	if cfg.GetAuditFilePath() != "" {
+		appAuditor.WithObserver(fsobserver.New(logger.Logger, cfg.GetAuditFilePath()))
+	}
+	if cfg.GetAuditUrl() != "" {
+		appAuditor.WithObserver(
+			httpobserver.New(
+				logger.Logger, &http.Client{Timeout: time.Second * 10}, cfg.GetAuditUrl(),
+			),
+		)
+	}
 
 	svc := shService.New(repository)
 	deleteWorker := deletelinks.New(svc)
 
-	handler, err := shortener.New(svc, cfg, deleteWorker, middlewares.NewAuthService())
+	handler, err := shortener.New(svc, cfg, deleteWorker, middlewares.NewAuthService(), appAuditor)
 	if err != nil {
 		return nil, err
 	}
