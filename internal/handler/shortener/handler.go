@@ -171,12 +171,12 @@ func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.R
 
 	var body CreateShortBody
 
-	if err := json.Unmarshal(bodyBytes, &body); err != nil {
+	if err = json.Unmarshal(bodyBytes, &body); err != nil {
 		http.Error(writer, "Error while decode body", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.validate.Struct(body); err != nil {
+	if err = h.validate.Struct(body); err != nil {
 		http.Error(writer, "Error while validate body", http.StatusBadRequest)
 		return
 	}
