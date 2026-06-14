@@ -25,3 +25,9 @@ vendor/
 bundle
 
 default
+
+scripts
+
+shortener
+
+default_audit

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	_ "net/http/pprof" // nolint:gosec  // Только для отладки в dev-окружении
 	"os"
 	"os/signal"
 	"sync"
@@ -41,6 +42,7 @@ func main() {
 	router.Use(middleware.RealIP)
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Recoverer)
+	router.Mount("/debug/pprof", http.DefaultServeMux)
 
 	var dbPool *postgres.Pool
 

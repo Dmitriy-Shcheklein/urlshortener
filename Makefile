@@ -58,3 +58,32 @@ migrations-generate:
 		exit 1; \
 	fi
 
+.PHONY: bench
+bench:
+	@echo "Running benchmarks..."
+	go test -bench=. -benchmem ./...
+
+.PHONY: bench-mem
+bench-mem:
+	@echo "Running benchmarks with memory profiling..."
+	@mkdir -p profiles
+	go test -bench=BenchmarkShorten -benchmem -count=5 -memprofile=profiles/base.pprof ./internal/services/shortener/
+	@echo "Profile saved to profiles/base.pprof"
+
+.PHONY: load-test
+load-test:
+	@echo "Running load test with k6..."
+	k6 run scripts/load-test.js
+
+.PHONY: profile-heap
+profile-heap:
+	@echo "Saving heap profile..."
+	@mkdir -p profiles
+	curl -s http://localhost:8080/debug/pprof/heap > profiles/base.pprof
+	@echo "Heap profile saved to profiles/base.pprof"
+
+.PHONY: pprof-mem
+pprof-mem:
+	@echo "Starting pprof web UI on http://localhost:8080..."
+	go tool pprof -http=:8081 profiles/base.pprof
+
