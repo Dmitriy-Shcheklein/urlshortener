@@ -26,8 +26,6 @@ bundle
 
 default
 
-scripts
-
-shortener
+scripts/
 
 default_audit
