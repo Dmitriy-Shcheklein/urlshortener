@@ -477,7 +477,7 @@ func TestCreateFromJSONBody(t *testing.T) {
 			handler.CreateFromJSONBody(writer, request)
 
 			assert.Equal(t, http.StatusBadRequest, writer.Code)
-			assert.Equal(t, "Error while decode body\n", writer.Body.String())
+			assert.Equal(t, "Error while read body\n", writer.Body.String())
 		},
 	)
 }

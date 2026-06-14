@@ -44,6 +44,7 @@ type Handler struct {
 	deleteWorker DeleteWorker
 	authSvc      AuthService
 	auditor      Auditor
+	validate     *validator.Validate
 }
 
 type CreateShortBody struct {
@@ -78,6 +79,7 @@ func New(service Service, config Config, deleteWorker DeleteWorker, authService 
 
 	return &Handler{
 		service: service, config: config, deleteWorker: deleteWorker, authSvc: authService, auditor: auditor,
+		validate: validator.New(),
 	}, nil
 }
 
@@ -156,15 +158,25 @@ func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	var body CreateShortBody
-	validate := validator.New()
+	bodyBytes, err := io.ReadAll(request.Body)
+	if err != nil {
+		http.Error(writer, "Error while read body", http.StatusBadRequest)
+		return
+	}
+	defer func() {
+		if err = request.Body.Close(); err != nil {
+			logger.Logger.Error().Err(err).Msg("error while close body")
+		}
+	}()
 
-	if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+	var body CreateShortBody
+
+	if err := json.Unmarshal(bodyBytes, &body); err != nil {
 		http.Error(writer, "Error while decode body", http.StatusBadRequest)
 		return
 	}
 
-	if err := validate.Struct(body); err != nil {
+	if err := h.validate.Struct(body); err != nil {
 		http.Error(writer, "Error while validate body", http.StatusBadRequest)
 		return
 	}
@@ -207,7 +219,6 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 	}()
 
 	var deserialized []model.CreateManyBodyRaw
-	validate := validator.New()
 
 	err = json.Unmarshal(body, &deserialized)
 	if err != nil {
@@ -220,7 +231,7 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 		return
 	}
 	for i := range deserialized {
-		if err = validate.Struct(deserialized[i]); err != nil {
+		if err = h.validate.Struct(deserialized[i]); err != nil {
 			http.Error(writer, "Error while validate body", http.StatusBadRequest)
 			return
 		}
