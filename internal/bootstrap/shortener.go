@@ -29,7 +29,7 @@ type InitResult struct {
 	// ErrChannel receives errors from background workers.
 	ErrChannel chan error
 	// Shutdowns contains cleanup functions to call on application shutdown.
-	Shutdowns  []func()
+	Shutdowns []func()
 }
 
 // InitShortener initializes the URL shortener service and registers all HTTP
