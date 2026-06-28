@@ -1,3 +1,8 @@
+// Package shortener provides HTTP handlers for the URL shortener REST API.
+//
+// The package exposes endpoints for creating, retrieving, and deleting shortened
+// URLs. It supports both plain-text and JSON request/response formats, as well
+// as batch operations.
 package shortener
 
 import (
@@ -15,29 +20,49 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// Service defines the core URL shortening operations used by the HTTP handler.
+// Implementations must be safe for concurrent use.
 type Service interface {
+	// GetByID retrieves the original URL by its short identifier.
+	// Returns pgx.ErrNoRows if the link has been deleted or does not exist.
 	GetByID(ID string) ([]byte, error)
+	// CreateShort creates a shortened URL for the given original URL.
+	// Returns a postgres.ConflictError if the URL was already shortened.
 	CreateShort(originalURL []byte, userID []byte) ([]byte, error)
+	// CreateMany performs a batch URL shortening operation.
 	CreateMany(values []model.CreateManyBodyRaw, userID []byte) ([]model.CreateManyResponseRaw, error)
+	// FindByUserID returns all non-deleted shortened URLs owned by the given user.
 	FindByUserID(userID []byte) ([]model.LinkRow, error)
 }
 
+// Config provides access to application-level configuration needed by the handler.
 type Config interface {
+	// GetBaseAddress returns the configured base address for building shortened URLs
+	// (e.g., "http://localhost:8080"). Returns nil if not configured.
 	GetBaseAddress() []byte
 }
 
+// DeleteWorker defines the interface for asynchronous link deletion.
 type DeleteWorker interface {
+	// AddToQueue enqueues a batch of short URL identifiers for deferred deletion
+	// under the given user ID.
 	AddToQueue(urls []string, userID string)
 }
 
+// AuthService provides user authentication context for request handlers.
 type AuthService interface {
+	// GetUserID extracts the authenticated user ID from the request context.
 	GetUserID(ctx context.Context) ([]byte, error)
 }
 
+// Auditor defines the interface for emitting audit events.
 type Auditor interface {
+	// Audit records an auditable action. userID may be nil for anonymous actions.
 	Audit(userID *string, action string, URL string)
 }
 
+// Handler implements HTTP endpoints for the URL shortener service.
+// Use [New] to create a properly initialized instance.
 type Handler struct {
 	service      Service
 	config       Config
@@ -47,17 +72,25 @@ type Handler struct {
 	validate     *validator.Validate
 }
 
+// CreateShortBody represents the JSON request body for the POST /api/shorten endpoint.
 type CreateShortBody struct {
 	URL string `json:"url" validate:"required,min=3"`
 }
+
+// CreateShortResponse represents the JSON response body returned after
+// successfully creating a shortened URL via POST /api/shorten.
 type CreateShortResponse struct {
 	Result string `json:"result"`
 }
+
+// FindByUserIDResponse represents a single entry in the GET /api/user/urls response.
 type FindByUserIDResponse struct {
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
 }
 
+// New creates a new Handler with the required dependencies.
+// All parameters must be non-nil; an error is returned if any is nil.
 func New(service Service, config Config, deleteWorker DeleteWorker, authService AuthService, auditor Auditor) (
 	*Handler, error,
 ) {
@@ -83,6 +116,13 @@ func New(service Service, config Config, deleteWorker DeleteWorker, authService 
 	}, nil
 }
 
+// GetByID handles GET /{id} requests. It resolves a short URL identifier to
+// the original URL and responds with an HTTP 307 redirect.
+//
+// Response codes:
+//   - 307 Temporary Redirect with Location header on success
+//   - 410 Gone if the link was deleted
+//   - 400 Bad Request if the ID is missing
 func (h *Handler) GetByID(writer http.ResponseWriter, request *http.Request) {
 	strID := strings.TrimPrefix(request.URL.Path, "/")
 
@@ -108,6 +148,13 @@ func (h *Handler) GetByID(writer http.ResponseWriter, request *http.Request) {
 	h.auditor.Audit(nil, "follow", string(link))
 }
 
+// CreateShort handles POST / requests with Content-Type: text/plain.
+// The request body must contain the original URL as plain text.
+//
+// Response codes:
+//   - 201 Created with the shortened URL in the body on success
+//   - 409 Conflict if the URL was already shortened (returns existing short URL)
+//   - 400 Bad Request on invalid content type or empty body
 func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request) {
 	if contentType := request.Header.Get("Content-Type"); contentType != "text/plain" {
 		http.Error(writer, "Invalid content-type", http.StatusBadRequest)
@@ -152,6 +199,22 @@ func (h *Handler) CreateShort(writer http.ResponseWriter, request *http.Request)
 	h.auditor.Audit(new(string(userID)), "shorten", string(body))
 }
 
+// CreateFromJSONBody handles POST /api/shorten requests with Content-Type: application/json.
+// It accepts a JSON body with a "url" field and returns a JSON response with the
+// shortened URL in the "result" field.
+//
+// Request body example:
+//
+//	{"url": "https://example.com/very/long/path"}
+//
+// Response body example:
+//
+//	{"result": "http://localhost:8080/abc123"}
+//
+// Response codes:
+//   - 201 Created with JSON result on success
+//   - 409 Conflict with JSON result if URL already shortened
+//   - 400 Bad Request on invalid JSON or validation failure
 func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.Request) {
 	if contentType := request.Header.Get("Content-Type"); contentType != "application/json" {
 		http.Error(writer, "Invalid content-type", http.StatusBadRequest)
@@ -201,6 +264,21 @@ func (h *Handler) CreateFromJSONBody(writer http.ResponseWriter, request *http.R
 	h.auditor.Audit(new(string(userID)), "shorten", body.URL)
 }
 
+// CreateMany handles POST /api/shorten/batch requests for batch URL shortening.
+// It accepts a JSON array of objects with "correlation_id" and "original_url" fields,
+// and returns a JSON array with "correlation_id" and "short_url" fields.
+//
+// Request body example:
+//
+//	[{"correlation_id": "1", "original_url": "https://example.com/a"}]
+//
+// Response body example:
+//
+//	[{"correlation_id": "1", "short_url": "http://localhost:8080/abc123"}]
+//
+// Response codes:
+//   - 201 Created with JSON array of shortened URLs on success
+//   - 400 Bad Request on invalid JSON, empty body, or validation failure
 func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) {
 	if contentType := request.Header.Get("Content-Type"); contentType != "application/json" {
 		http.Error(writer, "Invalid content-type", http.StatusBadRequest)
@@ -265,6 +343,17 @@ func (h *Handler) CreateMany(writer http.ResponseWriter, request *http.Request) 
 	prepareResponse(writer, headers, http.StatusCreated, resp)
 }
 
+// GetByUserID handles GET /api/user/urls requests. It returns all shortened URLs
+// owned by the authenticated user.
+//
+// Response body example:
+//
+//	[{"short_url": "http://localhost:8080/abc", "original_url": "https://example.com"}]
+//
+// Response codes:
+//   - 200 OK with JSON array of user's URLs
+//   - 204 No Content if the user has no URLs
+//   - 500 Internal Server Error on auth or service failure
 func (h *Handler) GetByUserID(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.authSvc.GetUserID(r.Context())
 	if err != nil {
@@ -290,6 +379,17 @@ func (h *Handler) GetByUserID(w http.ResponseWriter, r *http.Request) {
 	h.prepareFindByUserIDResponse(w, r.Host, res, status, headers)
 }
 
+// DeleteLinks handles DELETE /api/user/urls requests. It accepts a JSON array of
+// short URL identifiers and enqueues them for asynchronous deletion. Only URLs
+// owned by the authenticated user will be deleted.
+//
+// Request body example:
+//
+//	["abc123", "def456"]
+//
+// Response codes:
+//   - 202 Accepted (deletion scheduled, may not complete immediately)
+//   - 400 Bad Request on invalid JSON or empty body
 func (h *Handler) DeleteLinks(w http.ResponseWriter, r *http.Request) {
 	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
 		http.Error(w, "Invalid content-type", http.StatusBadRequest)

@@ -1,3 +1,5 @@
+// Package deletelinks provides a background worker for batch-deleting shortened URLs.
+// It accumulates deletion requests and processes them in batches to reduce database load.
 package deletelinks
 
 import (
@@ -12,10 +14,18 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// Service defines the deletion operations used by the worker.
 type Service interface {
+	// Delete marks the specified links as deleted.
 	Delete(values []*model.LinkToDelete) error
 }
 
+// DeleteLinksWorker is a background worker that accumulates link deletion requests
+// and processes them in batches. It flushes accumulated items every second or when
+// the batch size reaches 100 items.
+//
+// Use [New] to create an instance and [Start] to begin processing.
+// Call [Stop] to gracefully shut down the worker.
 type DeleteLinksWorker struct {
 	mainQueue   chan *model.LinkToDelete
 	cancelFunc  context.CancelFunc
@@ -26,6 +36,8 @@ type DeleteLinksWorker struct {
 	timeout     time.Duration
 }
 
+// New creates a new DeleteLinksWorker backed by the given service.
+// The worker must be started with [Start] before it can process deletions.
 func New(service Service) *DeleteLinksWorker {
 	worker := &DeleteLinksWorker{
 		service: service, mainQueue: make(chan *model.LinkToDelete),
@@ -36,12 +48,18 @@ func New(service Service) *DeleteLinksWorker {
 	return worker
 }
 
+// AddToQueue enqueues a batch of short URL identifiers for deletion under the
+// given user ID. This method is safe for concurrent use.
 func (d *DeleteLinksWorker) AddToQueue(urls []string, userID string) {
 	for _, value := range urls {
 		d.mainQueue <- &model.LinkToDelete{Link: value, UserID: userID}
 	}
 }
 
+// Start begins the background deletion processing. It returns an error channel
+// that will receive any errors encountered during processing.
+// Returns nil if the worker is already running. The worker stops when the
+// provided context is cancelled.
 func (d *DeleteLinksWorker) Start(ctx context.Context) chan error {
 	if d.initialized.Load() {
 		return nil
@@ -101,6 +119,8 @@ func (d *DeleteLinksWorker) addToAcc(acc *[]*model.LinkToDelete, val *model.Link
 	d.accMu.Unlock()
 }
 
+// Stop gracefully shuts down the worker by cancelling the processing context
+// and waiting for all pending operations to complete.
 func (d *DeleteLinksWorker) Stop() {
 	if d.cancelFunc != nil {
 		d.cancelFunc()

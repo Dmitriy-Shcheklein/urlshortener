@@ -1,3 +1,5 @@
+// Package fs provides a filesystem-backed repository for storing and retrieving
+// shortened URLs. Data is stored as newline-delimited JSON in a local file.
 package fs
 
 import (
@@ -12,18 +14,25 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// Config provides configuration for the filesystem repository.
 type Config interface {
+	// GetFSPath returns the path to the file used for storing URL mappings.
 	GetFSPath() string
 }
 
+// Repository implements the shortener.LinkRepository interface using a local
+// file as the backing store. Each URL mapping is stored as a JSON line.
 type Repository struct {
 	cfg Config
 }
 
+// New creates a new filesystem-backed repository with the given configuration.
 func New(cfg Config) *Repository {
 	return &Repository{cfg: cfg}
 }
 
+// GetByID retrieves the original URL by scanning the file for the matching
+// short URL identifier. Returns an error if the link is not found or deleted.
 func (r *Repository) GetByID(id string) ([]byte, error) {
 	file, err := os.OpenFile(r.cfg.GetFSPath(), os.O_RDONLY|os.O_CREATE, 0o600)
 	if err != nil {
@@ -52,6 +61,7 @@ func (r *Repository) GetByID(id string) ([]byte, error) {
 	return nil, errors.New("link by id not found")
 }
 
+// Save appends a new URL mapping as a JSON line to the storage file.
 func (r *Repository) Save(originalURL []byte, short []byte, userID []byte) error {
 	fileRaw := &model.LinkRow{
 		OriginalURL: string(originalURL),
@@ -76,6 +86,7 @@ func (r *Repository) Save(originalURL []byte, short []byte, userID []byte) error
 	return nil
 }
 
+// SaveMany appends multiple URL mappings as a JSON array to the storage file.
 func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 	file, err := os.OpenFile(r.cfg.GetFSPath(), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
 	if err != nil {
@@ -100,6 +111,8 @@ func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 	return nil
 }
 
+// FindByUserID scans the storage file and returns all non-deleted URL mappings
+// owned by the given user.
 func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	file, err := os.OpenFile(r.cfg.GetFSPath(), os.O_RDONLY|os.O_CREATE, 0o600)
 	if err != nil {
@@ -127,6 +140,9 @@ func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	return out, nil
 }
 
+// Delete marks the specified links as deleted by rewriting the storage file
+// with updated is_deleted flags. Only links matching both the short URL and
+// user ID are affected.
 func (r *Repository) Delete(in []*model.LinkToDelete) error {
 	if len(in) == 0 {
 		return nil

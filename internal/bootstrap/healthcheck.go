@@ -9,6 +9,8 @@ import (
 	"github.com/go-chi/chi"
 )
 
+// InitHealthcheck initializes the health check endpoint and registers the
+// GET /ping route on the given router. It requires an active database pool.
 func InitHealthcheck(_ *config.Config, pool *pool.Pool, router *chi.Mux) error {
 	pgRepo, err := postgres.New(pool)
 	if err != nil {

@@ -1,3 +1,6 @@
+// Package bootstrap provides application initialization and dependency wiring.
+// It assembles the URL shortener service by creating repositories, services,
+// handlers, and registering HTTP routes.
 package bootstrap
 
 import (
@@ -20,11 +23,26 @@ import (
 	"github.com/go-chi/chi"
 )
 
+// InitResult holds the results of shortener initialization, including an error
+// channel for background worker errors and shutdown functions for cleanup.
 type InitResult struct {
+	// ErrChannel receives errors from background workers.
 	ErrChannel chan error
+	// Shutdowns contains cleanup functions to call on application shutdown.
 	Shutdowns  []func()
 }
 
+// InitShortener initializes the URL shortener service and registers all HTTP
+// routes on the given router. It uses the PostgreSQL pool if provided; otherwise,
+// it falls back to filesystem storage.
+//
+// Registered routes:
+//   - POST /                     - Create short URL (text/plain)
+//   - GET /{id}                  - Redirect to original URL
+//   - POST /api/shorten          - Create short URL (JSON)
+//   - POST /api/shorten/batch    - Batch create short URLs (JSON)
+//   - GET /api/user/urls         - List user's URLs
+//   - DELETE /api/user/urls      - Delete user's URLs
 func InitShortener(ctx context.Context, cfg *config.Config, pool *pool.Pool, router *chi.Mux) (*InitResult, error) {
 	var repository shService.LinkRepository
 	if pool != nil {

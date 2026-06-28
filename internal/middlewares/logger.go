@@ -31,6 +31,8 @@ func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 	r.responseData.status = statusCode
 }
 
+// WithLogging is a middleware that logs HTTP request details (method, URI, duration)
+// and response details (status code, body size) using zerolog.
 func (a *AppMiddleware) WithLogging(h http.Handler) http.Handler {
 	logFn := func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

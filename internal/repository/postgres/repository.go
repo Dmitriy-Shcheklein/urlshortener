@@ -1,3 +1,5 @@
+// Package postgres provides a PostgreSQL-backed repository for storing and
+// retrieving shortened URLs. It uses pgx as the database driver.
 package postgres
 
 import (
@@ -13,21 +15,32 @@ import (
 )
 
 type (
-	PgxRow  = pgx.Row
+	// PgxRow is an alias for pgx.Row.
+	PgxRow = pgx.Row
+	// PgxRows is an alias for pgx.Rows.
 	PgxRows = pgx.Rows
 )
 
+// Pool defines the database connection pool interface used by the repository.
+// This allows for easy mocking in tests.
 type Pool interface {
+	// Ping verifies connectivity to the database.
 	Ping() error
+	// QueryRow executes a query that returns a single row.
 	QueryRow(ctx context.Context, sql string, args ...any) PgxRow
+	// Exec executes a query without returning any rows.
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	// Query executes a query that returns multiple rows.
 	Query(ctx context.Context, sql string, args ...any) (PgxRows, error)
 }
 
+// Repository implements the shortener.LinkRepository interface using PostgreSQL
+// as the backing store.
 type Repository struct {
 	pool Pool
 }
 
+// New creates a new PostgreSQL repository. The pool parameter must not be nil.
 func New(pool Pool) (*Repository, error) {
 	repository := &Repository{}
 	if pool == nil {
@@ -37,10 +50,13 @@ func New(pool Pool) (*Repository, error) {
 	return repository, nil
 }
 
+// Ping verifies connectivity to the PostgreSQL database.
 func (r *Repository) Ping() error {
 	return r.pool.Ping()
 }
 
+// GetByID retrieves the original URL by its short identifier.
+// Returns pgx.ErrNoRows if the link does not exist or has been soft-deleted.
 func (r *Repository) GetByID(ID string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -55,6 +71,8 @@ func (r *Repository) GetByID(ID string) ([]byte, error) {
 	return []byte(originalURL), nil
 }
 
+// Save persists a new short URL mapping. If the original URL already exists,
+// it returns a ConflictError containing the existing short URL.
 func (r *Repository) Save(originalUrl []byte, shortUrl []byte, userID []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -97,6 +115,7 @@ func (r *Repository) getByOriginalURL(url []byte) ([]byte, error) {
 	return []byte(shortURL), nil
 }
 
+// SaveMany persists multiple short URL mappings in a single batch INSERT statement.
 func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -126,6 +145,7 @@ func (r *Repository) SaveMany(values []model.LinkRow, userID []byte) error {
 	return nil
 }
 
+// FindByUserID returns all non-deleted shortened URLs owned by the given user.
 func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -148,6 +168,8 @@ func (r *Repository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	return links, nil
 }
 
+// Delete marks the specified links as deleted by setting the is_deleted flag.
+// Only links matching both the short URL and user ID are affected.
 func (r *Repository) Delete(in []*model.LinkToDelete) error {
 	if len(in) == 0 {
 		return nil

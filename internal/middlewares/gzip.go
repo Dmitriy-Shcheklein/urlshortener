@@ -19,6 +19,14 @@ func (w gzipWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
+// WithGzip is a middleware that handles gzip compression for HTTP responses
+// and decompression for HTTP requests.
+//
+// For responses: if the client sends Accept-Encoding: gzip and the Content-Type
+// is application/json or text/plain, the response body is gzip-compressed.
+//
+// For requests: if the request has Content-Encoding: gzip, the body is
+// decompressed before passing to the handler.
 func (a *AppMiddleware) WithGzip(h http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {

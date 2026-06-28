@@ -12,6 +12,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// Claims represents the JWT token claims used for user authentication.
+// It embeds jwt.RegisteredClaims for standard claims and adds a UserID field.
 type Claims struct {
 	jwt.RegisteredClaims
 	UserID string
@@ -25,6 +27,9 @@ var tokenExp = time.Hour
 
 var errInvalidUserFormat = errors.New("invalid user format")
 
+// Auth is a middleware that enforces JWT-based user authentication via an "auth" cookie.
+// If no cookie is present, a new one is generated with a random user ID.
+// The authenticated user's claims are stored in the request context.
 func (a *AppMiddleware) Auth(h http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
@@ -123,12 +128,17 @@ func (a *AppMiddleware) buildJWTString() (string, error) {
 	return tokenString, nil
 }
 
+// NewAuthService creates a new AuthService for extracting user IDs from request contexts.
 func NewAuthService() *AuthService {
 	return &AuthService{}
 }
 
+// AuthService implements the shortener.AuthService interface by extracting
+// the user ID from JWT claims stored in the request context by the Auth middleware.
 type AuthService struct{}
 
+// GetUserID extracts the authenticated user ID from the request context.
+// Returns an error if the context does not contain valid JWT claims.
 func (a *AuthService) GetUserID(ctx context.Context) ([]byte, error) {
 	v, ok := ctx.Value(userToken).(Claims)
 	if !ok {
