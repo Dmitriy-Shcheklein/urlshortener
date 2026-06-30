@@ -2,7 +2,9 @@ package auditor
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/rs/zerolog"
@@ -14,119 +16,209 @@ func newLogger() *zerolog.Logger {
 	return new(zerolog.Nop())
 }
 
+type blockingObserver struct {
+	block chan struct{}
+}
+
+func (o *blockingObserver) HandleMessage(msg model.AuditMsg) {
+	<-o.block
+}
+
 func TestAuditor(t *testing.T) {
-	t.Run("Тест создания Auditor", func(t *testing.T) {
-		t.Run("Должен создать Auditor", func(t *testing.T) {
-			logger := newLogger()
-			a := NewAuditor(logger)
+	t.Run(
+		"Тест создания Auditor", func(t *testing.T) {
+			t.Run(
+				"Должен создать Auditor", func(t *testing.T) {
+					logger := newLogger()
+					a := NewAuditor(logger)
 
-			assert.NotNil(t, a)
-			assert.Equal(t, logger, a.logger)
-			assert.Empty(t, a.observers)
-		})
-	})
+					assert.NotNil(t, a)
+					assert.Equal(t, logger, a.logger)
+					assert.Empty(t, a.pools)
+				},
+			)
+		},
+	)
 
-	t.Run("Тест WithObserver", func(t *testing.T) {
-		t.Run("Должен добавить одного observer", func(t *testing.T) {
-			a := NewAuditor(newLogger())
-			obs := NewMockObserver(t)
+	t.Run(
+		"Тест WithObserver", func(t *testing.T) {
+			t.Run(
+				"Должен добавить одного observer", func(t *testing.T) {
+					a := NewAuditor(newLogger(), NewMockObserver(t))
 
-			a.WithObserver(obs)
+					assert.Len(t, a.pools, 1)
+				},
+			)
 
-			assert.Len(t, a.observers, 1)
-		})
+			t.Run(
+				"Должен добавить нескольких observers", func(t *testing.T) {
+					a := NewAuditor(newLogger(), NewMockObserver(t), NewMockObserver(t))
 
-		t.Run("Должен добавить нескольких observers", func(t *testing.T) {
-			a := NewAuditor(newLogger())
-			obs1 := NewMockObserver(t)
-			obs2 := NewMockObserver(t)
+					assert.Len(t, a.pools, 2)
+				},
+			)
+		},
+	)
 
-			a.WithObserver(obs1)
-			a.WithObserver(obs2)
+	t.Run(
+		"Тест Audit", func(t *testing.T) {
+			t.Run(
+				"Должен ничего не делать если нет observers", func(t *testing.T) {
+					a := NewAuditor(newLogger())
 
-			assert.Len(t, a.observers, 2)
-		})
-	})
+					assert.NotPanics(
+						t, func() {
+							a.Audit(nil, "create", "http://example.com")
+						},
+					)
+				},
+			)
 
-	t.Run("Тест Audit", func(t *testing.T) {
-		t.Run("Должен ничего не делать если нет observers", func(t *testing.T) {
-			a := NewAuditor(newLogger())
+			t.Run(
+				"Должен отправить сообщение всем observers", func(t *testing.T) {
+					var wg sync.WaitGroup
+					var called1, called2 bool
+					wg.Add(2)
 
-			assert.NotPanics(t, func() {
-				a.Audit(nil, "create", "http://example.com")
-			})
-		})
+					obs1 := NewMockObserver(t)
+					obs1.EXPECT().HandleMessage(mock.Anything).Run(
+						func(msg model.AuditMsg) {
+							called1 = true
+							wg.Done()
+						},
+					).Return()
 
-		t.Run("Должен отправить сообщение всем observers", func(t *testing.T) {
-			var wg sync.WaitGroup
-			var called1, called2 bool
-			wg.Add(2)
+					obs2 := NewMockObserver(t)
+					obs2.EXPECT().HandleMessage(mock.Anything).Run(
+						func(msg model.AuditMsg) {
+							called2 = true
+							wg.Done()
+						},
+					).Return()
 
-			obs1 := NewMockObserver(t)
-			obs1.EXPECT().HandleMessage(mock.Anything).Run(func(msg model.AuditMsg) {
-				called1 = true
-				wg.Done()
-			}).Return()
+					a := NewAuditor(newLogger(), obs1, obs2)
+					defer a.Shutdown()
 
-			obs2 := NewMockObserver(t)
-			obs2.EXPECT().HandleMessage(mock.Anything).Run(func(msg model.AuditMsg) {
-				called2 = true
-				wg.Done()
-			}).Return()
+					a.Audit(new("user1"), "create", "http://example.com")
+					wg.Wait()
 
-			a := NewAuditor(newLogger())
-			a.WithObserver(obs1)
-			a.WithObserver(obs2)
+					assert.True(t, called1)
+					assert.True(t, called2)
+				},
+			)
 
-			a.Audit(new("user1"), "create", "http://example.com")
-			wg.Wait()
+			t.Run(
+				"Должен передать корректные данные в сообщение", func(t *testing.T) {
+					var received model.AuditMsg
+					var wg sync.WaitGroup
+					wg.Add(1)
 
-			assert.True(t, called1)
-			assert.True(t, called2)
-		})
+					obs := NewMockObserver(t)
+					obs.EXPECT().HandleMessage(mock.Anything).Run(
+						func(msg model.AuditMsg) {
+							received = msg
+							wg.Done()
+						},
+					).Return()
 
-		t.Run("Должен передать корректные данные в сообщение", func(t *testing.T) {
-			var received model.AuditMsg
-			var wg sync.WaitGroup
-			wg.Add(1)
+					a := NewAuditor(newLogger(), obs)
+					defer a.Shutdown()
 
-			obs := NewMockObserver(t)
-			obs.EXPECT().HandleMessage(mock.Anything).Run(func(msg model.AuditMsg) {
-				received = msg
-				wg.Done()
-			}).Return()
+					userID := "user1"
+					a.Audit(&userID, "delete", "http://example.com/123")
+					wg.Wait()
 
-			a := NewAuditor(newLogger())
-			a.WithObserver(obs)
+					assert.Equal(t, "delete", received.Action)
+					assert.Equal(t, "http://example.com/123", received.URL)
+					assert.Equal(t, &userID, received.UserID)
+					assert.Greater(t, received.Ts, int64(0))
+				},
+			)
 
-			userID := "user1"
-			a.Audit(&userID, "delete", "http://example.com/123")
-			wg.Wait()
+			t.Run(
+				"Должен передать nil UserID", func(t *testing.T) {
+					var received model.AuditMsg
+					var wg sync.WaitGroup
+					wg.Add(1)
 
-			assert.Equal(t, "delete", received.Action)
-			assert.Equal(t, "http://example.com/123", received.URL)
-			assert.Equal(t, &userID, received.UserID)
-			assert.Greater(t, received.Ts, int64(0))
-		})
+					obs := NewMockObserver(t)
+					obs.EXPECT().HandleMessage(mock.Anything).Run(
+						func(msg model.AuditMsg) {
+							received = msg
+							wg.Done()
+						},
+					).Return()
 
-		t.Run("Должен передать nil UserID", func(t *testing.T) {
-			var received model.AuditMsg
-			var wg sync.WaitGroup
-			wg.Add(1)
+					a := NewAuditor(newLogger(), obs)
+					defer a.Shutdown()
 
-			obs := NewMockObserver(t)
-			obs.EXPECT().HandleMessage(mock.Anything).Run(func(msg model.AuditMsg) {
-				received = msg
-				wg.Done()
-			}).Return()
+					a.Audit(nil, "create", "http://example.com")
+					wg.Wait()
 
-			a := NewAuditor(newLogger())
-			a.WithObserver(obs)
+					assert.Nil(t, received.UserID)
+				},
+			)
+		},
+	)
 
-			a.Audit(nil, "create", "http://example.com")
-			wg.Wait()
+	t.Run(
+		"Тест Shutdown", func(t *testing.T) {
+			t.Run(
+				"Должен обработать все сообщения при Shutdown", func(t *testing.T) {
+					var count atomic.Int32
 
-			assert.Nil(t, received.UserID)
-		})
-	})
+					obs := NewMockObserver(t)
+					obs.EXPECT().HandleMessage(mock.Anything).Run(
+						func(msg model.AuditMsg) {
+							count.Add(1)
+						},
+					).Return()
+
+					a := NewAuditor(newLogger(), obs)
+
+					for i := 0; i < 10; i++ {
+						a.Audit(nil, "test", "http://example.com")
+					}
+					a.Shutdown()
+
+					assert.Equal(t, int32(10), count.Load())
+				},
+			)
+
+			t.Run(
+				"Должен не блокироваться при переполнении канала", func(t *testing.T) {
+					obs := &blockingObserver{block: make(chan struct{})}
+					a := NewAuditor(newLogger(), obs)
+
+					done := make(chan struct{})
+					go func() {
+						for i := 0; i < defaultChannelBuffer+10; i++ {
+							a.Audit(nil, "test", "http://example.com")
+						}
+						close(done)
+					}()
+
+					select {
+					case <-done:
+					case <-time.After(time.Second):
+						t.Fatal("Audit blocked when channel was full")
+					}
+
+					close(obs.block)
+					a.Shutdown()
+				},
+			)
+
+			t.Run(
+				"Shutdown не должен паниковать при повторном вызове", func(t *testing.T) {
+					obs := &blockingObserver{block: make(chan struct{})}
+					close(obs.block)
+
+					a := NewAuditor(newLogger(), obs)
+					a.Shutdown()
+					assert.NotPanics(t, func() { a.Shutdown() })
+				},
+			)
+		},
+	)
 }

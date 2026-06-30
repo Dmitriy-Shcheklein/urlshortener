@@ -22,12 +22,24 @@ func TestObserver(t *testing.T) {
 		"Тест создания Observer", func(t *testing.T) {
 			t.Run(
 				"Должен создать Observer", func(t *testing.T) {
-					logger := newLogger()
-					o := New(logger, "/tmp/audit.log")
+					dir := t.TempDir()
+					filePath := filepath.Join(dir, "audit.log")
 
+					logger := newLogger()
+					o, err := New(logger, filePath)
+
+					require.NoError(t, err)
 					assert.NotNil(t, o)
-					assert.Equal(t, "/tmp/audit.log", o.path)
 					assert.Equal(t, logger, o.logger)
+				},
+			)
+
+			t.Run(
+				"Должен вернуть ошибку при невалидном пути", func(t *testing.T) {
+					o, err := New(newLogger(), "/nonexistent/dir/audit.log")
+
+					assert.Error(t, err)
+					assert.Nil(t, o)
 				},
 			)
 		},
@@ -40,7 +52,8 @@ func TestObserver(t *testing.T) {
 					dir := t.TempDir()
 					filePath := filepath.Join(dir, "audit.log")
 
-					o := New(newLogger(), filePath)
+					o, err := New(newLogger(), filePath)
+					require.NoError(t, err)
 
 					msg := model.AuditMsg{
 						Ts: 1234567890, Action: "create", UserID: new("user1"), URL: "http://example.com",
@@ -73,7 +86,8 @@ func TestObserver(t *testing.T) {
 					dir := t.TempDir()
 					filePath := filepath.Join(dir, "audit.log")
 
-					o := New(newLogger(), filePath)
+					o, err := New(newLogger(), filePath)
+					require.NoError(t, err)
 
 					msg1 := model.AuditMsg{Ts: 1, Action: "create", URL: "http://first.com"}
 					msg2 := model.AuditMsg{Ts: 2, Action: "delete", URL: "http://second.com"}
@@ -98,25 +112,12 @@ func TestObserver(t *testing.T) {
 			)
 
 			t.Run(
-				"Должен не паниковать при ошибке открытия файла", func(t *testing.T) {
-					o := New(newLogger(), "/nonexistent/dir/audit.log")
-
-					msg := model.AuditMsg{Ts: 1, Action: "create", URL: "http://example.com"}
-
-					assert.NotPanics(
-						t, func() {
-							o.HandleMessage(msg)
-						},
-					)
-				},
-			)
-
-			t.Run(
 				"Должен записать сообщение без UserID", func(t *testing.T) {
 					dir := t.TempDir()
 					filePath := filepath.Join(dir, "audit.log")
 
-					o := New(newLogger(), filePath)
+					o, err := New(newLogger(), filePath)
+					require.NoError(t, err)
 
 					msg := model.AuditMsg{Ts: 100, Action: "create", URL: "http://example.com"}
 					o.HandleMessage(msg)

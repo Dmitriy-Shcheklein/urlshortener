@@ -27,13 +27,15 @@ func (m *mockService) GetByID(id string) ([]byte, error) {
 	return nil, fmt.Errorf("not found")
 }
 
-func (m *mockService) CreateShort(originalURL []byte, userID []byte) ([]byte, error) {
+func (m *mockService) CreateShort(originalURL []byte, _ []byte) ([]byte, error) {
 	short := fmt.Sprintf("abc%d", len(m.urls))
 	m.urls[short] = originalURL
 	return []byte(short), nil
 }
 
-func (m *mockService) CreateMany(values []model.CreateManyBodyRaw, userID []byte) ([]model.CreateManyResponseRaw, error) {
+func (m *mockService) CreateMany(values []model.CreateManyBodyRaw, _ []byte) (
+	[]model.CreateManyResponseRaw, error,
+) {
 	result := make([]model.CreateManyResponseRaw, len(values))
 	for i, v := range values {
 		short := fmt.Sprintf("batch%d", i)
@@ -46,13 +48,15 @@ func (m *mockService) CreateMany(values []model.CreateManyBodyRaw, userID []byte
 	return result, nil
 }
 
-func (m *mockService) FindByUserID(userID []byte) ([]model.LinkRow, error) {
+func (m *mockService) FindByUserID(_ []byte) ([]model.LinkRow, error) {
 	var rows []model.LinkRow
 	for short, original := range m.urls {
-		rows = append(rows, model.LinkRow{
-			ShortURL:    short,
-			OriginalURL: string(original),
-		})
+		rows = append(
+			rows, model.LinkRow{
+				ShortURL:    short,
+				OriginalURL: string(original),
+			},
+		)
 	}
 	return rows, nil
 }
@@ -69,23 +73,22 @@ func (m *mockConfig) GetBaseAddress() []byte {
 // mockDeleteWorker implements shortener.DeleteWorker for examples.
 type mockDeleteWorker struct{}
 
-func (m *mockDeleteWorker) AddToQueue(urls []string, userID string) {}
+func (m *mockDeleteWorker) AddToQueue(_ []string, _ string) {}
 
 // mockAuthService implements shortener.AuthService for examples.
 type mockAuthService struct{}
 
-func (m *mockAuthService) GetUserID(ctx context.Context) ([]byte, error) {
+func (m *mockAuthService) GetUserID(_ context.Context) ([]byte, error) {
 	return []byte("user123"), nil
 }
 
 // mockAuditor implements shortener.Auditor for examples.
 type mockAuditor struct{}
 
-func (m *mockAuditor) Audit(userID *string, action string, URL string) {}
+func (m *mockAuditor) Audit(_ *string, _, _ string) {}
 
 func setupHandler() *shortener.Handler {
-	nop := zerolog.Nop()
-	logger.Logger = &nop
+	logger.Logger = new(zerolog.Nop())
 	svc := &mockService{urls: make(map[string][]byte)}
 	cfg := &mockConfig{baseAddress: []byte("http://localhost:8080")}
 	handler, _ := shortener.New(svc, cfg, &mockDeleteWorker{}, &mockAuthService{}, &mockAuditor{})
@@ -103,7 +106,7 @@ func ExampleHandler_CreateShort() {
 	handler.CreateShort(w, req)
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	fmt.Println("Status:", resp.StatusCode)
 	fmt.Println("Content-Type:", resp.Header.Get("Content-Type"))
@@ -128,12 +131,12 @@ func ExampleHandler_CreateFromJSONBody() {
 	handler.CreateFromJSONBody(w, req)
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	fmt.Println("Status:", resp.StatusCode)
 
 	var result shortener.CreateShortResponse
-	json.NewDecoder(resp.Body).Decode(&result)
+	_ = json.NewDecoder(resp.Body).Decode(&result)
 	fmt.Println("Has result:", result.Result != "")
 
 	// Output:
@@ -152,12 +155,12 @@ func ExampleHandler_CreateMany() {
 	handler.CreateMany(w, req)
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	fmt.Println("Status:", resp.StatusCode)
 
 	var result []model.CreateManyResponseRaw
-	json.NewDecoder(resp.Body).Decode(&result)
+	_ = json.NewDecoder(resp.Body).Decode(&result)
 	fmt.Println("Items:", len(result))
 	fmt.Println("CorrelationID:", result[0].CorrelationID)
 
@@ -179,7 +182,7 @@ func ExampleHandler_GetByID() {
 
 	// Parse the created short URL to get the ID
 	var createResp shortener.CreateShortResponse
-	json.NewDecoder(createW.Result().Body).Decode(&createResp)
+	_ = json.NewDecoder(createW.Result().Body).Decode(&createResp)
 
 	// Extract ID from the short URL (remove base address prefix)
 	id := createResp.Result[len("http://localhost:8080/"):]
@@ -190,7 +193,7 @@ func ExampleHandler_GetByID() {
 	handler.GetByID(w, req)
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	fmt.Println("Status:", resp.StatusCode)
 	fmt.Println("Location:", resp.Header.Get("Location"))
@@ -216,13 +219,13 @@ func ExampleHandler_GetByUserID() {
 	handler.GetByUserID(w, req)
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	fmt.Println("Status:", resp.StatusCode)
 	fmt.Println("Content-Type:", resp.Header.Get("Content-Type"))
 
 	var result []map[string]string
-	json.NewDecoder(resp.Body).Decode(&result)
+	_ = json.NewDecoder(resp.Body).Decode(&result)
 	fmt.Println("URLs count:", len(result))
 
 	// Output:
@@ -242,7 +245,7 @@ func ExampleHandler_DeleteLinks() {
 	handler.DeleteLinks(w, req)
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	fmt.Println("Status:", resp.StatusCode)
 

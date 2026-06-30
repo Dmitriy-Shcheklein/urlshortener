@@ -3,43 +3,50 @@
 package fsobserver
 
 import (
+	"bufio"
 	"encoding/json"
 	"os"
+	"sync"
 
 	"github.com/Dmitriy-Shcheklein/urlshortener/internal/model"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
 // New creates a new file system audit observer that appends audit messages
 // to the specified file path. The file is created if it does not exist.
-func New(logger *zerolog.Logger, filePath string) *Observer {
-	return &Observer{logger: logger, path: filePath}
+func New(logger *zerolog.Logger, filePath string) (*Observer, error) {
+	// #nosec G304
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	return &Observer{
+		logger: logger, file: file,
+		writer: bufio.NewWriter(file),
+	}, nil
 }
 
 // Observer implements the auditor.Observer interface by appending audit messages
 // as JSON lines to a local file.
 type Observer struct {
 	logger *zerolog.Logger
-	path   string
+	writer *bufio.Writer
+	file   *os.File
+	mu     sync.Mutex
 }
 
 // HandleMessage marshals the audit message to JSON and appends it to the
 // configured file. Errors are logged but not propagated.
 func (o *Observer) HandleMessage(msg model.AuditMsg) {
-	file, err := os.OpenFile(o.path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
-	if err != nil {
-		o.logger.Error().Err(err).Msg("error while audit open files")
-		return
-	}
-	defer func() {
-		if err = file.Close(); err != nil {
-			log.Err(err).Msg("error while close file")
-		}
-	}()
-	encoder := json.NewEncoder(file)
-	if err = encoder.Encode(&msg); err != nil {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	encoder := json.NewEncoder(o.writer)
+	if err := encoder.Encode(&msg); err != nil {
 		o.logger.Error().Err(err).Msg("error while audit encode message")
 		return
+	}
+	if err := o.writer.Flush(); err != nil {
+		o.logger.Error().Err(err).Msg("error while flush audit file")
 	}
 }

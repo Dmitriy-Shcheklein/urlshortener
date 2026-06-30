@@ -30,7 +30,7 @@ func ExampleHandler_PingDB() {
 	handler.PingDB(w, req)
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	fmt.Println("Status:", resp.StatusCode)
 
@@ -48,7 +48,7 @@ func ExampleHandler_PingDB_unhealthy() {
 	handler.PingDB(w, req)
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	fmt.Println("Status:", resp.StatusCode)
 

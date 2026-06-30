@@ -34,10 +34,12 @@ func (m *mockRepository) SaveMany(values []model.LinkRow, userID []byte) error {
 func (m *mockRepository) FindByUserID(userID []byte) ([]model.LinkRow, error) {
 	var rows []model.LinkRow
 	for short, original := range m.urls {
-		rows = append(rows, model.LinkRow{
-			ShortURL:    short,
-			OriginalURL: string(original),
-		})
+		rows = append(
+			rows, model.LinkRow{
+				ShortURL:    short,
+				OriginalURL: string(original),
+			},
+		)
 	}
 	return rows, nil
 }
@@ -114,8 +116,8 @@ func ExampleService_FindByUserID() {
 	repo := &mockRepository{urls: make(map[string][]byte)}
 	svc := shortener.New(repo)
 
-	svc.CreateShort([]byte("https://practicum.yandex.ru"), []byte("user1"))
-	svc.CreateShort([]byte("https://ya.ru"), []byte("user1"))
+	_, _ = svc.CreateShort([]byte("https://practicum.yandex.ru"), []byte("user1"))
+	_, _ = svc.CreateShort([]byte("https://ya.ru"), []byte("user1"))
 
 	urls, err := svc.FindByUserID([]byte("user1"))
 	if err != nil {
@@ -135,9 +137,11 @@ func ExampleService_Delete() {
 
 	short, _ := svc.CreateShort([]byte("https://practicum.yandex.ru"), []byte("user1"))
 
-	err := svc.Delete([]*model.LinkToDelete{
-		{Link: string(short), UserID: "user1"},
-	})
+	err := svc.Delete(
+		[]*model.LinkToDelete{
+			{Link: string(short), UserID: "user1"},
+		},
+	)
 
 	fmt.Println("Delete error:", err)
 

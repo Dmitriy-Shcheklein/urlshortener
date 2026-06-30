@@ -54,17 +54,23 @@ func InitShortener(ctx context.Context, cfg *config.Config, pool *pool.Pool, rou
 	} else {
 		repository = fs.New(cfg)
 	}
-	appAuditor := auditor.NewAuditor(logger.Logger)
+	observers := make([]auditor.Observer, 0)
+
 	if cfg.GetAuditFilePath() != "" {
-		appAuditor.WithObserver(fsobserver.New(logger.Logger, cfg.GetAuditFilePath()))
+		fsObs, err := fsobserver.New(logger.Logger, cfg.GetAuditFilePath())
+		if err != nil {
+			return nil, err
+		}
+		observers = append(observers, fsObs)
 	}
 	if cfg.GetAuditUrl() != "" {
-		appAuditor.WithObserver(
-			httpobserver.New(
+		observers = append(
+			observers, httpobserver.New(
 				logger.Logger, &http.Client{Timeout: time.Second * 10}, cfg.GetAuditUrl(),
 			),
 		)
 	}
+	appAuditor := auditor.NewAuditor(logger.Logger, observers...)
 
 	svc := shService.New(repository)
 	deleteWorker := deletelinks.New(svc)
@@ -82,5 +88,5 @@ func InitShortener(ctx context.Context, cfg *config.Config, pool *pool.Pool, rou
 	router.Get("/api/user/urls", handler.GetByUserID)
 	router.Delete("/api/user/urls", handler.DeleteLinks)
 
-	return &InitResult{ErrChannel: errChan, Shutdowns: []func(){deleteWorker.Stop}}, nil
+	return &InitResult{ErrChannel: errChan, Shutdowns: []func(){deleteWorker.Stop, appAuditor.Shutdown}}, nil
 }
