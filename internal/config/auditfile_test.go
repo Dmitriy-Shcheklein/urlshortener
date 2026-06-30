@@ -13,7 +13,7 @@ func TestAuditFilePath(t *testing.T) {
 			f := NewAuditFilePath()
 
 			assert.NotNil(t, f)
-			assert.Equal(t, "default_audit", f.Path)
+			assert.Equal(t, "", f.Path)
 			assert.False(t, f.IsFromEnv)
 		})
 	})
