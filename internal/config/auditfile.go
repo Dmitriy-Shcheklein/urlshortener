@@ -12,7 +12,7 @@ type AuditFilePath struct {
 }
 
 func NewAuditFilePath() *AuditFilePath {
-	path := &AuditFilePath{Path: "default_audit"}
+	path := &AuditFilePath{}
 
 	flag.Var(path, "audit-file", "audit file path")
 
