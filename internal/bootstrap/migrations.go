@@ -10,6 +10,8 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
+// RunMigration applies all pending database migrations from the ./migrations directory.
+// It returns nil if all migrations were already applied (ErrNoChange).
 func RunMigration(connString string) error {
 	m, err := migrate.New("file://./migrations", connString)
 	if err != nil {

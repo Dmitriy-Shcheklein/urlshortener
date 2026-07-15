@@ -25,3 +25,7 @@ vendor/
 bundle
 
 default
+
+scripts/
+
+default_audit

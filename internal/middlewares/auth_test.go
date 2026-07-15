@@ -7,16 +7,31 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var (
+	mw      *AppMiddleware
+	mockCfg *MockConfig
+)
+
+var setup = func(t *testing.T) {
+	mockCfg = NewMockConfig(t)
+
+	mw = NewAppMiddleware(new(zerolog.Nop()), mockCfg)
+}
 
 func TestAuth(t *testing.T) {
 	t.Run(
 		"Cookie Generation", func(t *testing.T) {
 			t.Run(
 				"Успешное создание cookie с корректными параметрами", func(t *testing.T) {
-					cookie, err := generateNewCookie()
+					setup(t)
+
+					mockCfg.EXPECT().GetSalt().Return([]byte("salt"))
+					cookie, err := mw.generateNewCookie()
 
 					require.NoError(t, err)
 					assert.NotNil(t, cookie)
@@ -32,7 +47,10 @@ func TestAuth(t *testing.T) {
 
 			t.Run(
 				"Cookie value имеет правильный формат", func(t *testing.T) {
-					cookie, err := generateNewCookie()
+					setup(t)
+
+					mockCfg.EXPECT().GetSalt().Return([]byte("salt"))
+					cookie, err := mw.generateNewCookie()
 
 					require.NoError(t, err)
 					assert.NotNil(t, cookie)
@@ -50,16 +68,17 @@ func TestAuth(t *testing.T) {
 				cookie  *http.Cookie
 			)
 
-			setup := func(t *testing.T) {
+			setupRequest := func(t *testing.T) {
 				request = httptest.NewRequest(http.MethodGet, "/", nil)
 			}
 
 			t.Run(
 				"Невалидный формат - нет разделителя", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 					cookie = &http.Cookie{Value: "justOnePart"}
 
-					result, err := verifyToken(request, cookie)
+					result, err := mw.verifyToken(request, cookie)
 
 					assert.Error(t, err)
 					assert.Contains(t, err.Error(), "invalid token format")
@@ -70,9 +89,10 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Невалидный формат - пустая строка", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 					cookie = &http.Cookie{Value: ""}
 
-					result, err := verifyToken(request, cookie)
+					result, err := mw.verifyToken(request, cookie)
 
 					assert.Error(t, err)
 					assert.True(t, errors.Is(err, errInvalidUserFormat))
@@ -84,9 +104,10 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Невалидный формат - только разделители", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 					cookie = &http.Cookie{Value: "..."}
 
-					result, err := verifyToken(request, cookie)
+					result, err := mw.verifyToken(request, cookie)
 
 					assert.Error(t, err)
 					assert.True(t, errors.Is(err, errInvalidUserFormat))
@@ -98,9 +119,10 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Невалидный base64 в encodedUserID", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 					cookie = &http.Cookie{Value: "not_valid_base64!!.invalid_signature"}
 
-					result, err := verifyToken(request, cookie)
+					result, err := mw.verifyToken(request, cookie)
 
 					assert.Error(t, err)
 					assert.Contains(t, err.Error(), "invalid token format")
@@ -111,9 +133,10 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Проверка типа ошибки InvalidUserFormatError", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 					invalidCookie := &http.Cookie{Value: "not_valid_base64!!.invalid_signature"}
 
-					_, err := verifyToken(request, invalidCookie)
+					_, err := mw.verifyToken(request, invalidCookie)
 
 					require.Error(t, err)
 					assert.True(t, errors.Is(err, errInvalidUserFormat))
@@ -123,9 +146,11 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Успешная верификация с валидным generated cookie", func(t *testing.T) {
 					setup(t)
-					validCookie, _ := generateNewCookie()
+					setupRequest(t)
+					mockCfg.EXPECT().GetSalt().Return([]byte("salt"))
+					validCookie, _ := mw.generateNewCookie()
 
-					result, err := verifyToken(request, validCookie)
+					result, err := mw.verifyToken(request, validCookie)
 
 					require.NoError(t, err)
 					assert.NotNil(t, result)
@@ -150,9 +175,9 @@ func TestAuth(t *testing.T) {
 				request     *http.Request
 			)
 
-			setup := func(t *testing.T) {
+			setupRequest := func(t *testing.T) {
 				nextHandler = &mockHandler{}
-				middleware = Auth(nextHandler)
+				middleware = mw.Auth(nextHandler)
 				writer = httptest.NewRecorder()
 				request = httptest.NewRequest(http.MethodGet, "/", nil)
 			}
@@ -160,7 +185,9 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Нет cookie - успешное создание нового", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 
+					mockCfg.EXPECT().GetSalt().Return([]byte("salt"))
 					middleware.ServeHTTP(writer, request)
 
 					assert.Equal(t, http.StatusOK, writer.Code)
@@ -177,7 +204,9 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Нет cookie - NextHandler вызывается", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 
+					mockCfg.EXPECT().GetSalt().Return([]byte("salt"))
 					middleware.ServeHTTP(writer, request)
 
 					assert.True(t, nextHandler.called, "NextHandler должен быть вызван при отсутствии cookie")
@@ -187,7 +216,9 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Нет cookie - Response Header содержит Set-Cookie", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 
+					mockCfg.EXPECT().GetSalt().Return([]byte("salt"))
 					middleware.ServeHTTP(writer, request)
 
 					setCookieHeader := writer.Header().Get("Set-Cookie")
@@ -198,7 +229,9 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Нет cookie - Response Code не равен 500", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 
+					mockCfg.EXPECT().GetSalt().Return([]byte("salt"))
 					middleware.ServeHTTP(writer, request)
 
 					assert.NotEqual(t, http.StatusInternalServerError, writer.Code)
@@ -208,8 +241,10 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Существующий валидный cookie", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 
-					manualCookie, _ := generateNewCookie()
+					mockCfg.EXPECT().GetSalt().Return([]byte("salt"))
+					manualCookie, _ := mw.generateNewCookie()
 					request.AddCookie(manualCookie)
 
 					middleware.ServeHTTP(writer, request)
@@ -222,8 +257,10 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Существующий валидный cookie - UserID в контексте", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 
-					manualCookie, _ := generateNewCookie()
+					mockCfg.EXPECT().GetSalt().Return([]byte("salt"))
+					manualCookie, _ := mw.generateNewCookie()
 					request.AddCookie(manualCookie)
 
 					middleware.ServeHTTP(writer, request)
@@ -236,6 +273,7 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Существующий cookie - неверный формат (нет разделителя)", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 					invalidCookie := &http.Cookie{Name: "auth", Value: "invalid_format"}
 					request.AddCookie(invalidCookie)
 
@@ -250,6 +288,7 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Существующий cookie - неверная подпись", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 					invalidCookie := &http.Cookie{Name: "auth", Value: "valid_base64.wrong_signature"}
 					request.AddCookie(invalidCookie)
 
@@ -264,6 +303,7 @@ func TestAuth(t *testing.T) {
 			t.Run(
 				"Проверка HTTP кода для InvalidUserFormatError", func(t *testing.T) {
 					setup(t)
+					setupRequest(t)
 					invalidCookie := &http.Cookie{Name: "auth", Value: "not_valid_base64!!.invalid_signature"}
 					request.AddCookie(invalidCookie)
 
