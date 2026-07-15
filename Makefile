@@ -15,6 +15,11 @@ build:
 run: build
 	./bundle
 
+.PHONY: custom-lint
+custom-lint:
+	@echo "🔍 Custom-Linting code..."
+	go run ./cmd/linter/main.go ./internal/... ./cmd/shortener
+
 .PHONY: lint
 lint:
 	@echo "🔍 Linting code..."
