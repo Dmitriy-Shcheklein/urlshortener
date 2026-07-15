@@ -11,7 +11,7 @@ func main() {
 }
 
 func helper() {
-	panic("report")    // want "найден вызов panic\\(\\)"
-	log.Fatal("test")  // want "найден вызов log\\.Fatal"
-	os.Exit(1)         // want "найден вызов os\\.Exit"
+	panic("report")   // want "найден вызов panic\\(\\)"
+	log.Fatal("test") // want "найден вызов log\\.Fatal"
+	os.Exit(1)        // want "найден вызов os\\.Exit"
 }
