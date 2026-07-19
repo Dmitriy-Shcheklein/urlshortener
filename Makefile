@@ -1,3 +1,11 @@
+BUILD_VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "N/A")
+BUILD_DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+BUILD_COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "N/A")
+
+LDFLAGS := -X main.buildVersion=$(BUILD_VERSION) \
+           -X main.buildDate=$(BUILD_DATE) \
+           -X main.buildCommit=$(BUILD_COMMIT)
+
 .PHONY: generate-reset
 generate-reset:
 	@echo "🔄 Generating reset methods..."
@@ -15,7 +23,7 @@ test:
 
 .PHONY: build
 build:
-	go build -o bundle ./cmd/shortener
+	go build -ldflags "$(LDFLAGS)" -o bundle ./cmd/shortener
 
 .PHONY: run
 run: build
