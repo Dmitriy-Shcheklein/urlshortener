@@ -1,3 +1,9 @@
+.PHONY: generate-reset
+generate-reset:
+	@echo "🔄 Generating reset methods..."
+	go run ./cmd/reset ./...
+	@echo "✅ Reset methods generated"
+
 .PHONY: test
 test:
 	@echo "Running tests..."
