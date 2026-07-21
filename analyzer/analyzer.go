@@ -32,7 +32,7 @@ func run(pass *analysis.Pass) (any, error) {
 				if !ok {
 					return true
 				}
-				pName, fName := getFunctionName(callExp)
+				pName, fName := getFunctionName(pass, callExp)
 				if fName == "panic" {
 					pass.Reportf(callExp.Pos(), "найден вызов panic()")
 				}
@@ -51,13 +51,14 @@ func run(pass *analysis.Pass) (any, error) {
 	return nil, nil
 }
 
-func getFunctionName(call *ast.CallExpr) (string, string) {
+func getFunctionName(pass *analysis.Pass, call *ast.CallExpr) (string, string) {
+
 	switch f := call.Fun.(type) {
 	case *ast.Ident:
 		return "", f.Name
 	case *ast.SelectorExpr:
-		if pkgIdent, ok := f.X.(*ast.Ident); ok {
-			return pkgIdent.Name, f.Sel.Name
+		if _, ok := f.X.(*ast.Ident); ok {
+			return pass.TypesInfo.Uses[f.Sel].Pkg().Name(), f.Sel.Name
 		}
 		return "", f.Sel.Name
 	default:

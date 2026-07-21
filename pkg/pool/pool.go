@@ -1,11 +1,8 @@
-// Package pool provides a generic fixed-size object pool for values whose
-// pointer type implements a Reset() method.
+// Package pool provides a generic object pool for values whose pointer type
+// implements a Reset() method.
 package pool
 
-import "fmt"
-
-// MaxSize is the maximum number of objects a Pool may hold.
-const MaxSize = 1000
+import "sync"
 
 // Resetter describes types that can be reset to a clean state.
 type Resetter interface {
@@ -17,40 +14,40 @@ type pointerToResetter[T any] interface {
 	Resetter
 }
 
-// Pool is a fixed-size pool of reusable pointers to values of type T.
+// Pool is a generic reusable object pool.
 //
-// PT must be *T, and *T must implement Resetter. Get blocks when the pool
-// is empty; Put blocks when the pool is full.
+// PT must be *T, and *T must implement Resetter. Get returns an object
+// from the pool or calls New to create a new one. Put resets the object
+// and returns it to the pool.
 //
-//	Pool for type MyStruct and pointer *MyStruct:
-//	p := pool.New[MyStruct, *MyStruct](size)
+//	p := &pool.Pool[MyStruct, *MyStruct]{
+//	    New: func() *MyStruct { return &MyStruct{} },
+//	}
 type Pool[T any, PT pointerToResetter[T]] struct {
-	ch chan PT
+	New  func() PT
+	once sync.Once
+	pool sync.Pool
 }
 
-// New creates a fixed-size Pool containing size pre-allocated objects.
-// It returns an error if size is not between 1 and MaxSize.
-func New[T any, PT pointerToResetter[T]](size int) (*Pool[T, PT], error) {
-	if size <= 0 || size > MaxSize {
-		return nil, fmt.Errorf("pool.New: size must be between 1 and %d", MaxSize)
-	}
-
-	ch := make(chan PT, size)
-	for range size {
-		var t T
-		ch <- PT(&t)
-	}
-
-	return &Pool[T, PT]{ch: ch}, nil
+func (p *Pool[T, PT]) init() {
+	p.once.Do(
+		func() {
+			newFn := p.New
+			p.pool.New = func() any { return newFn() }
+		},
+	)
 }
 
-// Get returns an object from the pool. It blocks until an object is available.
+// Get returns an object from the pool. If the pool is empty, it calls New
+// to create a new object.
 func (p *Pool[T, PT]) Get() PT {
-	return <-p.ch
+	p.init()
+	return p.pool.Get().(PT)
 }
 
-// Put resets v and returns it to the pool. It blocks if the pool is full.
+// Put resets v and returns it to the pool.
 func (p *Pool[T, PT]) Put(v PT) {
+	p.init()
 	v.Reset()
-	p.ch <- v
+	p.pool.Put(v)
 }

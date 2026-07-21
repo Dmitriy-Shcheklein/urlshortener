@@ -19,21 +19,14 @@ func (i *item) Reset() {
 	i.seen = false
 }
 
-func TestPool_NewReturnsErrorOnInvalidSize(t *testing.T) {
-	_, err := pool.New[item, *item](0)
-	require.Error(t, err)
-
-	_, err = pool.New[item, *item](-1)
-	require.Error(t, err)
-
-	_, err = pool.New[item, *item](pool.MaxSize + 1)
-	require.Error(t, err)
+func newPool() *pool.Pool[item, *item] {
+	return &pool.Pool[item, *item]{
+		New: func() *item { return &item{} },
+	}
 }
 
 func TestPool_GetReturnsFreshObject(t *testing.T) {
-	p, err := pool.New[item, *item](10)
-	require.NoError(t, err)
-	require.NotNil(t, p)
+	p := newPool()
 
 	obj := p.Get()
 	require.NotNil(t, obj)
@@ -43,8 +36,7 @@ func TestPool_GetReturnsFreshObject(t *testing.T) {
 }
 
 func TestPool_PutResetsObject(t *testing.T) {
-	p, err := pool.New[item, *item](10)
-	require.NoError(t, err)
+	p := newPool()
 
 	obj := p.Get()
 	obj.value = 42
@@ -58,21 +50,17 @@ func TestPool_PutResetsObject(t *testing.T) {
 }
 
 func TestPool_ReusesObjects(t *testing.T) {
-	p, err := pool.New[item, *item](1)
-	require.NoError(t, err)
+	p := newPool()
 
 	obj := p.Get()
-	ptr := obj
-
 	p.Put(obj)
 
 	obj2 := p.Get()
-	assert.Same(t, ptr, obj2)
+	assert.Same(t, obj, obj2)
 }
 
 func TestPool_MultipleGetPut(t *testing.T) {
-	p, err := pool.New[item, *item](10)
-	require.NoError(t, err)
+	p := newPool()
 
 	const count = 10
 	objects := make([]*item, 0, count)
@@ -94,8 +82,7 @@ func TestPool_MultipleGetPut(t *testing.T) {
 }
 
 func TestPool_ConcurrentGetPut(t *testing.T) {
-	p, err := pool.New[item, *item](100)
-	require.NoError(t, err)
+	p := newPool()
 
 	const iterations = 1000
 
@@ -114,4 +101,17 @@ func TestPool_ConcurrentGetPut(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestPool_GetCreatesNewWhenEmpty(t *testing.T) {
+	p := newPool()
+
+	obj1 := p.Get()
+	require.NotNil(t, obj1)
+
+	obj2 := p.Get()
+	require.NotNil(t, obj2)
+
+	obj3 := p.Get()
+	require.NotNil(t, obj3)
 }
