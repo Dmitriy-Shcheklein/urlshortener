@@ -19,10 +19,6 @@ type pointerToResetter[T any] interface {
 // PT must be *T, and *T must implement Resetter. Get returns an object
 // from the pool or calls New to create a new one. Put resets the object
 // and returns it to the pool.
-//
-//	p := &pool.Pool[MyStruct, *MyStruct]{
-//	    New: func() *MyStruct { return &MyStruct{} },
-//	}
 type Pool[T any, PT pointerToResetter[T]] struct {
 	New  func() PT
 	once sync.Once
