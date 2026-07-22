@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof" // nolint:gosec  // Только для отладки в dev-окружении
@@ -22,7 +23,17 @@ import (
 	"github.com/rs/zerolog"
 )
 
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
+)
+
 func main() {
+	fmt.Printf("Build version: %s\n", buildVersion)
+	fmt.Printf("Build date: %s\n", buildDate)
+	fmt.Printf("Build commit: %s\n", buildCommit)
+
 	baseCancelCtx, cancelFunc := context.WithCancel(context.Background())
 
 	cfg, err := config.New()
